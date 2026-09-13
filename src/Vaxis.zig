@@ -11,7 +11,6 @@ const Key = @import("Key.zig");
 const Mouse = @import("Mouse.zig");
 const Screen = @import("Screen.zig");
 const Cursor = Screen.Cursor;
-const unicode = @import("unicode.zig");
 const Window = @import("Window.zig");
 
 const Hyperlink = Cell.Hyperlink;
@@ -126,7 +125,8 @@ pub fn init(io: std.Io, alloc: std.mem.Allocator, env_map: *std.process.Environ.
 /// optional so applications can choose to not free resources when the
 /// application will be exiting anyways
 pub fn deinit(self: *Vaxis, alloc: ?std.mem.Allocator, tty: *std.Io.Writer) void {
-    self.resetState(tty) catch {};
+    self.resetState(tty) catch |err|
+        log.warn("could not reset terminal state: {t}", .{err});
 
     if (alloc) |a| {
         if (self.state.prev_cursor_secondary.ptr != self.screen.cursor_secondary.ptr)
@@ -197,12 +197,7 @@ pub fn resetState(self: *Vaxis, tty: *std.Io.Writer) !void {
 /// required to display the screen (ie width x height). Any previous screen is
 /// freed when resizing. The cursor will be sent to it's home position and a
 /// hardware clear-below-cursor will be sent
-pub fn resize(
-    self: *Vaxis,
-    alloc: std.mem.Allocator,
-    tty: *std.Io.Writer,
-    winsize: Winsize,
-) !void {
+pub fn resize(self: *Vaxis, alloc: std.mem.Allocator, tty: *std.Io.Writer, winsize: Winsize) !void {
     log.debug("resizing screen: width={d} height={d}", .{ winsize.cols, winsize.rows });
     const replacements = blk: {
         var screen = try Screen.init(alloc, winsize);
@@ -432,14 +427,7 @@ pub fn render(self: *Vaxis, tty: *std.Io.Writer) !void {
     var cursor_pos: CursorPos = .{};
 
     const startRender = struct {
-        fn run(
-            vx: *Vaxis,
-            io: *std.Io.Writer,
-            cursor_pos_ptr: *CursorPos,
-            reposition_ptr: *bool,
-            started_ptr: *bool,
-            sync_active_ptr: *bool,
-        ) !void {
+        fn run(vx: *Vaxis, io: *std.Io.Writer, cursor_pos_ptr: *CursorPos, reposition_ptr: *bool, started_ptr: *bool, sync_active_ptr: *bool) !void {
             if (started_ptr.*) return;
             started_ptr.* = true;
             sync_active_ptr.* = true;
@@ -948,16 +936,7 @@ pub fn translateMouse(self: Vaxis, mouse: Mouse) Mouse {
 }
 
 /// Transmit an image using the local filesystem. Allocates only for base64 encoding
-pub fn transmitLocalImagePath(
-    self: *Vaxis,
-    allocator: std.mem.Allocator,
-    tty: *std.Io.Writer,
-    payload: []const u8,
-    width: u16,
-    height: u16,
-    medium: Image.TransmitMedium,
-    format: Image.TransmitFormat,
-) !Image {
+pub fn transmitLocalImagePath(self: *Vaxis, allocator: std.mem.Allocator, tty: *std.Io.Writer, payload: []const u8, width: u16, height: u16, medium: Image.TransmitMedium, format: Image.TransmitFormat) !Image {
     if (!self.caps.kitty_graphics) return error.NoGraphicsCapability;
 
     defer self.next_img_id += 1;
@@ -1007,14 +986,7 @@ pub fn transmitLocalImagePath(
 }
 
 /// Transmit an image which has been pre-base64 encoded
-pub fn transmitPreEncodedImage(
-    self: *Vaxis,
-    tty: *std.Io.Writer,
-    bytes: []const u8,
-    width: u16,
-    height: u16,
-    format: Image.TransmitFormat,
-) !Image {
+pub fn transmitPreEncodedImage(self: *Vaxis, tty: *std.Io.Writer, bytes: []const u8, width: u16, height: u16, format: Image.TransmitFormat) !Image {
     if (!self.caps.kitty_graphics) return error.NoGraphicsCapability;
 
     defer self.next_img_id += 1;
@@ -1065,13 +1037,7 @@ pub fn transmitPreEncodedImage(
     };
 }
 
-pub fn transmitImage(
-    self: *Vaxis,
-    alloc: std.mem.Allocator,
-    tty: *std.Io.Writer,
-    img: *const zigimg.Image,
-    format: Image.TransmitFormat,
-) !Image {
+pub fn transmitImage(self: *Vaxis, alloc: std.mem.Allocator, tty: *std.Io.Writer, img: *const zigimg.Image, format: Image.TransmitFormat) !Image {
     if (!self.caps.kitty_graphics) return error.NoGraphicsCapability;
 
     var arena = std.heap.ArenaAllocator.init(alloc);
@@ -1101,12 +1067,7 @@ pub fn transmitImage(
     return self.transmitPreEncodedImage(tty, encoded, @intCast(img.width), @intCast(img.height), format);
 }
 
-pub fn loadImage(
-    self: *Vaxis,
-    alloc: std.mem.Allocator,
-    tty: *std.Io.Writer,
-    src: Image.Source,
-) !Image {
+pub fn loadImage(self: *Vaxis, alloc: std.mem.Allocator, tty: *std.Io.Writer, src: Image.Source) !Image {
     if (!self.caps.kitty_graphics) return error.NoGraphicsCapability;
 
     var read_buffer: [1024 * 1024]u8 = undefined; // 1MB buffer
@@ -1124,7 +1085,8 @@ pub fn freeImage(_: Vaxis, tty: *std.Io.Writer, id: u32) void {
         log.err("couldn't delete image {d}: {}", .{ id, err });
         return;
     };
-    tty.flush() catch {};
+    tty.flush() catch |err|
+        log.err("couldn't delete image {d}: {t}", .{ id, err });
 }
 
 pub fn copyToSystemClipboard(_: Vaxis, tty: *std.Io.Writer, text: []const u8, encode_allocator: std.mem.Allocator) !void {

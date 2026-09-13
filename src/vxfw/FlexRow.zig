@@ -1,5 +1,4 @@
 const std = @import("std");
-const vaxis = @import("../main.zig");
 
 const vxfw = @import("vxfw.zig");
 

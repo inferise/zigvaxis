@@ -1,14 +1,8 @@
 const std = @import("std");
-const fmt = std.fmt;
-const math = std.math;
-const base64 = std.base64.standard.Encoder;
-const zigimg = @import("zigimg");
 
 const Window = @import("Window.zig");
 
 const Image = @This();
-
-const transmit_opener = "\x1b_Gf=32,i={d},s={d},v={d},m={d};";
 
 pub const Source = union(enum) {
     path: []const u8,

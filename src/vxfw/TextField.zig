@@ -9,7 +9,6 @@ const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const Key = vaxis.Key;
 const Cell = vaxis.Cell;
-const Window = vaxis.Window;
 const unicode = vaxis.unicode;
 
 const TextField = @This();

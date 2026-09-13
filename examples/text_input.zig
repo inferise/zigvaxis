@@ -1,10 +1,6 @@
 const std = @import("std");
-const vaxis = @import("vaxis");
-const Cell = vaxis.Cell;
+const vaxis = @import("zigvaxis");
 const TextInput = vaxis.widgets.TextInput;
-const border = vaxis.widgets.border;
-
-const log = std.log.scoped(.main);
 
 // Our Event. This can contain internal events as well as Vaxis events.
 // Internal events can be posted into the same queue as vaxis events to allow

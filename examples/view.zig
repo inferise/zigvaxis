@@ -1,12 +1,9 @@
 const std = @import("std");
 const log = std.log.scoped(.main);
 const mem = std.mem;
-const process = std.process;
 
-const vaxis = @import("vaxis");
+const vaxis = @import("zigvaxis");
 const View = vaxis.widgets.View;
-const Cell = vaxis.Cell;
-const border = vaxis.widgets.border;
 
 const Event = union(enum) {
     key_press: vaxis.Key,

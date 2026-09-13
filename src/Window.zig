@@ -29,13 +29,7 @@ screen: *Screen,
 /// Creates a new window with offset relative to parent and size clamped to the
 /// parent's size. Windows do not retain a reference to their parent and are
 /// unaware of resizes.
-fn initChild(
-    self: Window,
-    x_off: i17,
-    y_off: i17,
-    maybe_width: ?u16,
-    maybe_height: ?u16,
-) Window {
+fn initChild(self: Window, x_off: i17, y_off: i17, maybe_width: ?u16, maybe_height: ?u16) Window {
     const max_height = @max(self.height - y_off, 0);
     const max_width = @max(self.width - x_off, 0);
     const width: u16 = maybe_width orelse max_width;

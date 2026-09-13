@@ -9,7 +9,9 @@ style: vaxis.Style = .{ .dim = true },
 highlighted_style: vaxis.Style = .{ .dim = true, .bg = .{ .index = 0 } },
 
 pub fn extractDigit(v: usize, n: usize) usize {
-    return (v / (std.math.powi(usize, 10, n) catch unreachable)) % 10;
+    // 10^n overflowing usize means v has fewer than n digits, so the nth is 0.
+    const pow = std.math.powi(usize, 10, n) catch return 0;
+    return (v / pow) % 10;
 }
 
 pub fn numDigits(v: usize) u8 {

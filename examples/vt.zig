@@ -1,13 +1,12 @@
 const std = @import("std");
-const vaxis = @import("vaxis");
-const Cell = vaxis.Cell;
+const vaxis = @import("zigvaxis");
 
 const Event = union(enum) {
     key_press: vaxis.Key,
     winsize: vaxis.Winsize,
 };
 
-pub const panic = vaxis.panic_handler;
+pub const panic = vaxis.panicHandler;
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;

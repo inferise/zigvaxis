@@ -1,5 +1,5 @@
 const std = @import("std");
-const vaxis = @import("vaxis");
+const vaxis = @import("zigvaxis");
 
 fn parseIterations(allocator: std.mem.Allocator, args: std.process.Args) !usize {
     var it = try args.iterateAllocator(allocator);

@@ -1,8 +1,7 @@
 const std = @import("std");
-const vaxis = @import("vaxis");
+const vaxis = @import("zigvaxis");
 const Cell = vaxis.Cell;
 
-const log = std.log.scoped(.main);
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const alloc = init.gpa;

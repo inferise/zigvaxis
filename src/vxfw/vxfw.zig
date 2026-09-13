@@ -1,6 +1,5 @@
 const std = @import("std");
 const vaxis = @import("../main.zig");
-const uucode = @import("uucode");
 
 const testing = std.testing;
 
@@ -169,7 +168,7 @@ pub const EventContext = struct {
     pub fn sendNotification(
         self: *EventContext,
         maybe_title: ?[]const u8,
-        body: []const u8,
+        body: []const u8
     ) Allocator.Error!void {
         const alloc = self.alloc;
         if (maybe_title) |title| {
@@ -378,7 +377,7 @@ pub const Surface = struct {
         allocator: Allocator,
         widget: Widget,
         size: Size,
-        children: []SubSurface,
+        children: []SubSurface
     ) Allocator.Error!Surface {
         return .{
             .size = size,

@@ -1,4 +1,3 @@
-const std = @import("std");
 
 /// Control bytes. See man 7 ascii
 pub const C0 = enum(u8) {

@@ -77,12 +77,7 @@ pub fn deinit(self: *InternalScreen, alloc: std.mem.Allocator) void {
 }
 
 /// writes a cell to a location. 0 indexed
-pub fn writeCell(
-    self: *InternalScreen,
-    col: u16,
-    row: u16,
-    cell: Cell,
-) void {
+pub fn writeCell(self: *InternalScreen, col: u16, row: u16, cell: Cell) void {
     if (self.width <= col) {
         // column out of bounds
         return;

@@ -126,7 +126,7 @@ pub fn drawTable(
     /// Note, MultiArrayList support currently requires allocation.
     data_list: anytype,
     // The Table Context for this Table.
-    table_ctx: *TableContext,
+    table_ctx: *TableContext
 ) !void {
     var di_is_mal = false;
     const data_items = getData: {
@@ -387,7 +387,7 @@ pub fn drawTable(
 fn formatCellValue(
     alloc: ?mem.Allocator,
     item: anytype,
-    comptime DataT: type,
+    comptime DataT: type
 ) ![]const u8 {
     if (alloc) |_alloc| {
         if (comptime std.meta.hasFn(@TypeOf(item), "format")) {
@@ -403,7 +403,7 @@ pub fn calcColWidth(
     col: u16,
     headers: []const []const u8,
     style: WidthStyle,
-    table_win: vaxis.Window,
+    table_win: vaxis.Window
 ) !u16 {
     return switch (style) {
         .dynamic_fill => dynFill: {

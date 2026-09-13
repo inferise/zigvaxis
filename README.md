@@ -4,8 +4,6 @@
 It begins with them, but ends with me. Their son, Vaxis
 ```
 
-![vaxis demo gif](vaxis.gif)
-
 Libvaxis _does not use terminfo_. Support for vt features is detected through
 terminal queries.
 

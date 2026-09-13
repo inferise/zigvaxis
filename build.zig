@@ -38,7 +38,7 @@ pub fn build(b: *std.Build) void {
     } else null;
 
     // Module
-    const vaxis_mod = b.addModule("vaxis", .{
+    const vaxis_mod = b.addModule("zigvaxis", .{
         .root_source_file = root_source_file,
         .target = target,
         .optimize = optimize,
@@ -63,7 +63,7 @@ pub fn build(b: *std.Build) void {
         .pic = true,
         .link_libc = true,
         .imports = &.{
-            .{ .name = "vaxis", .module = vaxis_mod },
+            .{ .name = "zigvaxis", .module = vaxis_mod },
             .{ .name = "build_options", .module = c_api_options.createModule() },
         },
     });
@@ -104,7 +104,8 @@ pub fn build(b: *std.Build) void {
         .linkage = .dynamic,
         .root_module = shared_mod,
         .use_llvm = use_llvm,
-        .version = std.SemanticVersion.parse(version_string) catch unreachable,
+        .version = std.SemanticVersion.parse(version_string) catch
+            @panic("build.zig.zon .version is not valid SemVer"),
     });
 
     const install_static = b.addInstallArtifact(static_lib, .{});
@@ -153,7 +154,7 @@ pub fn build(b: *std.Build) void {
                 .target = target,
                 .optimize = optimize,
                 .imports = &.{
-                    .{ .name = "vaxis", .module = vaxis_mod },
+                    .{ .name = "zigvaxis", .module = vaxis_mod },
                 },
             }),
         );
@@ -181,7 +182,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "vaxis", .module = vaxis_mod },
+                .{ .name = "zigvaxis", .module = vaxis_mod },
             },
         }),
     });
@@ -190,6 +191,23 @@ pub fn build(b: *std.Build) void {
         bench_run.addArgs(args);
     }
     bench_step.dependOn(&bench_run.step);
+
+    // Demo CLI: a gallery of every vxfw widget, in cli/.
+    const cli_mod = b.createModule(.{
+        .root_source_file = b.path("cli/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "zigvaxis", .module = vaxis_mod },
+        },
+    });
+    const cli_exe = b.addExecutable(.{
+        .name = "zigvaxis-cli",
+        .root_module = cli_mod,
+        .use_llvm = use_llvm,
+    });
+    const cli_step = b.step("cli", "Run the demo CLI");
+    cli_step.dependOn(&b.addRunArtifact(cli_exe).step);
 
     // Tests
     const tests_step = b.step("test", "Run tests");
@@ -218,6 +236,12 @@ pub fn build(b: *std.Build) void {
         const r = b.addRunArtifact(e);
         tests_step.dependOn(&r.step);
     }
+
+    // The demo CLI carries its own unit tests.
+    tests_step.dependOn(&b.addRunArtifact(b.addTest(.{
+        .use_llvm = use_llvm,
+        .root_module = cli_mod,
+    })).step);
 
     const tests_run = b.addRunArtifact(tests);
     b.installArtifact(tests);

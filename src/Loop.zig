@@ -82,7 +82,8 @@ pub fn Loop(comptime T: type) type {
             if (self.thread == null) return;
             self.should_quit = true;
             // trigger a read
-            self.vaxis.deviceStatusReport(self.tty.writer()) catch {};
+            self.vaxis.deviceStatusReport(self.tty.writer()) catch |err|
+                log.warn("could not wake the read thread to stop it: {t}", .{err});
 
             if (self.thread) |*thread| {
                 thread.await(self.io);
@@ -125,7 +126,8 @@ pub fn Loop(comptime T: type) type {
             const winsize = self.tty.getWinsize() catch return;
             if (@hasField(Event, "winsize")) {
                 // Resize notifications may be coalesced when the queue is full.
-                _ = self.tryPostEvent(.{ .winsize = winsize }) catch {};
+                _ = self.tryPostEvent(.{ .winsize = winsize }) catch |err|
+                    log.debug("dropped a resize notification: {t}", .{err});
             }
         }
 
@@ -156,13 +158,11 @@ pub fn Loop(comptime T: type) type {
 
         /// read input from the tty. This is run in a separate thread
         fn ttyRun(self: *Self, paste_allocator: ?std.mem.Allocator) void {
-            self._ttyRun(paste_allocator) catch {};
+            self.ttyRunFallible(paste_allocator) catch |err|
+                log.err("tty read loop exited: {t}", .{err});
         }
 
-        fn _ttyRun(
-            self: *Self,
-            paste_allocator: ?std.mem.Allocator,
-        ) TtyRunError!void {
+        fn ttyRunFallible(self: *Self, paste_allocator: ?std.mem.Allocator) TtyRunError!void {
             // Return early if we're in test mode to avoid infinite loops
             if (builtin.is_test) return;
 

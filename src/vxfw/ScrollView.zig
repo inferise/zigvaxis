@@ -273,7 +273,7 @@ fn insertChildren(
     ctx: vxfw.DrawContext,
     builder: Builder,
     child_list: *std.ArrayList(vxfw.SubSurface),
-    add_height: i17,
+    add_height: i17
 ) Allocator.Error!void {
     assert(self.scroll.top > 0);
     self.scroll.top -= 1;

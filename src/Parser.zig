@@ -67,20 +67,6 @@ const mouse_bits = struct {
     const leave: u16 = 0b100000000;
 };
 
-// the state of the parser
-const State = enum {
-    ground,
-    escape,
-    csi,
-    osc,
-    dcs,
-    sos,
-    pm,
-    apc,
-    ss2,
-    ss3,
-};
-
 // a buffer to temporarily store text in. We need this to encode
 // text-as-codepoints
 buf: [128]u8 = undefined,
@@ -704,8 +690,9 @@ inline fn parseCsi(input: []const u8, text_buf: []u8, cursor_position_requests: 
                 {
                     // Encode the codepoint as upper
                     const upper = std.ascii.toUpper(@intCast(key.codepoint));
-                    const n = std.unicode.utf8Encode(upper, text_buf) catch unreachable;
-                    key.text = text_buf[0..n];
+                    // upper is printable ASCII, so it encodes to exactly one byte.
+                    text_buf[0] = upper;
+                    key.text = text_buf[0..1];
                     key.shifted_codepoint = upper;
                 }
             }

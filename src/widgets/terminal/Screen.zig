@@ -20,7 +20,9 @@ pub const Cell = struct {
 
     pub fn erase(self: *Cell, allocator: std.mem.Allocator, bg: vaxis.Color) void {
         self.char.clearRetainingCapacity();
-        self.char.append(allocator, ' ') catch unreachable; // we never completely free this list
+        // clearRetainingCapacity keeps the backing buffer, so this only allocates
+        // the first time a given cell is erased.
+        self.char.append(allocator, ' ') catch @panic("out of memory erasing terminal cell");
         self.style = .{};
         self.style.bg = bg;
         self.uri.clearRetainingCapacity();
@@ -179,7 +181,7 @@ pub fn print(
     self: *Screen,
     grapheme: []const u8,
     width: u8,
-    wrap: bool,
+    wrap: bool
 ) !void {
     if (self.cursor.pending_wrap) {
         try self.index();

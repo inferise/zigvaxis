@@ -7,7 +7,7 @@
 //! the comptime block below exports each one with a vaxis_ prefix.
 const std = @import("std");
 const builtin = @import("builtin");
-const vaxis = @import("vaxis");
+const vaxis = @import("zigvaxis");
 
 const Color = vaxis.Color;
 const Key = vaxis.Key;

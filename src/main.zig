@@ -1,5 +1,4 @@
 const std = @import("std");
-const builtin = @import("builtin");
 
 pub const tty = @import("tty.zig");
 
@@ -26,6 +25,8 @@ pub const Window = @import("Window.zig");
 pub const widgets = @import("widgets.zig");
 pub const gwidth = @import("gwidth.zig");
 pub const ctlseqs = @import("ctlseqs.zig");
+
+const log = std.log.scoped(.vaxis);
 pub const GraphemeCache = @import("GraphemeCache.zig");
 pub const Event = @import("event.zig").Event;
 pub const unicode = @import("unicode.zig");
@@ -47,18 +48,27 @@ pub fn init(io: std.Io, alloc: std.mem.Allocator, env_map: *std.process.Environ.
     return Vaxis.init(io, alloc, env_map, opts);
 }
 
-pub const Panic = struct {
-    pub const call = panic_handler;
-    pub const sentinelMismatch = std.debug.FormattedPanic.sentinelMismatch;
-    pub const unwrapError = std.debug.FormattedPanic.unwrapError;
-    pub const outOfBounds = std.debug.FormattedPanic.outOfBounds;
-    pub const startGreaterThanEnd = std.debug.FormattedPanic.startGreaterThanEnd;
-    pub const inactiveUnionField = std.debug.FormattedPanic.inactiveUnionField;
-    pub const messages = std.debug.FormattedPanic.messages;
-};
+/// Panic namespace for `pub const panic = vaxis.Panic;`.
+///
+/// `std.debug.FullPanic` supplies every safety-panic handler the compiler needs;
+/// only the top-level `call` is ours, so the terminal is reset first.
+pub const Panic = std.debug.FullPanic(panicCall);
 
-/// Resets terminal state on a panic, then calls the default zig panic handler
-pub fn panic_handler(msg: []const u8, _: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
+/// Resets terminal state on a panic, then calls the default zig panic handler.
+///
+/// This is the legacy form, for `pub const panic = vaxis.panicHandler;`. Apps on
+/// the `std.builtin.Panic` interface want `pub const panic = vaxis.Panic;`, which
+/// routes through `panicCall` instead.
+pub fn panicHandler(msg: []const u8, _: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
+    recover();
+    std.debug.defaultPanic(msg, ret_addr);
+}
+
+/// `Panic.call`: the two-argument shape `std.builtin.Panic` requires.
+///
+/// Kept separate from `panicHandler` so both spellings of the root `panic`
+/// declaration keep working.
+fn panicCall(msg: []const u8, ret_addr: ?usize) noreturn {
     recover();
     std.debug.defaultPanic(msg, ret_addr);
 }
@@ -71,8 +81,12 @@ pub fn recover() void {
             ctlseqs.bp_reset ++
             ctlseqs.rmcup;
 
-        gty.writer().writeAll(reset) catch {};
-        gty.writer().flush() catch {};
+        // Called from the panic handler, so std.log may lock or allocate here.
+        // The reset is best effort either way; report why it failed.
+        gty.writer().writeAll(reset) catch |err|
+            log.err("could not reset the terminal on panic: {t}", .{err});
+        gty.writer().flush() catch |err|
+            log.err("could not flush the terminal reset on panic: {t}", .{err});
         gty.deinit();
     }
 }

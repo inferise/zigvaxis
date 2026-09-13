@@ -1,5 +1,4 @@
 const std = @import("std");
-const unicode = std.unicode;
 const testing = std.testing;
 const uucode = @import("uucode");
 

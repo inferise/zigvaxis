@@ -204,7 +204,7 @@ pub fn run(self: *App, widget: vxfw.Widget, opts: Options) anyerror!void {
 fn doLayout(
     self: *App,
     widget: vxfw.Widget,
-    arena: *std.heap.ArenaAllocator,
+    arena: *std.heap.ArenaAllocator
 ) !vxfw.Surface {
     const vx = &self.vx;
 
@@ -215,9 +215,11 @@ fn doLayout(
             .width = @intCast(vx.screen.width),
             .height = @intCast(vx.screen.height),
         },
+        // A screen dimension of 0 is reachable before the first winsize
+        // arrives, and on a pty whose size was never set.
         .cell_size = .{
-            .width = vx.screen.width_pix / vx.screen.width,
-            .height = vx.screen.height_pix / vx.screen.height,
+            .width = if (vx.screen.width == 0) 0 else vx.screen.width_pix / vx.screen.width,
+            .height = if (vx.screen.height == 0) 0 else vx.screen.height_pix / vx.screen.height,
         },
     };
     return widget.draw(draw_context);
@@ -226,7 +228,7 @@ fn doLayout(
 fn render(
     self: *App,
     surface: vxfw.Surface,
-    focused_widget: vxfw.Widget,
+    focused_widget: vxfw.Widget
 ) !void {
     const vx = &self.vx;
     const tty = &self.tty;
@@ -342,7 +344,7 @@ const MouseHandler = struct {
         self: *MouseHandler,
         app: *App,
         surface: vxfw.Surface,
-        ctx: *vxfw.EventContext,
+        ctx: *vxfw.EventContext
     ) anyerror!void {
         const mouse = self.mouse orelse return;
         // For mouse events we store the last frame and use that for hit testing
@@ -557,7 +559,7 @@ const FocusHandler = struct {
     fn childHasFocus(
         self: *FocusHandler,
         allocator: Allocator,
-        surface: vxfw.Surface,
+        surface: vxfw.Surface
     ) Allocator.Error!bool {
         // Check if we are the focused widget
         if (self.focused_widget.eql(surface.widget)) {

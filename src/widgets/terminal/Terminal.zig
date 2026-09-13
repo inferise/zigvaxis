@@ -10,7 +10,6 @@ const Pty = @import("Pty.zig");
 const vaxis = @import("../../main.zig");
 const Winsize = vaxis.Winsize;
 const Screen = @import("Screen.zig");
-const Key = vaxis.Key;
 const key = @import("key.zig");
 
 pub const Event = union(enum) {
@@ -30,7 +29,6 @@ const QueuedEvent = union(enum) {
 };
 const Queue = vaxis.Queue(QueuedEvent, 16);
 
-const posix = std.posix;
 
 const log = std.log.scoped(.terminal);
 
@@ -101,7 +99,7 @@ pub fn init(
     argv: []const []const u8,
     env: *const std.process.Environ.Map,
     opts: Options,
-    write_buf: []u8,
+    write_buf: []u8
 ) !Terminal {
     if (!global_io_initialized) {
         global_io = io;
@@ -164,7 +162,8 @@ pub fn deinit(self: *Terminal) void {
     if (self.thread) |*thread| {
         // write an EOT into the tty to trigger a read on our thread
         const EOT = "\x04";
-        self.pty.tty.writeStreamingAll(self.io, EOT) catch {};
+        self.pty.tty.writeStreamingAll(self.io, EOT) catch |err|
+            log.debug("could not write EOT to wake the read thread: {t}", .{err});
         thread.await(self.io);
         self.thread = null;
     }
@@ -294,14 +293,15 @@ fn freeQueuedEvent(self: *Terminal, event: QueuedEvent) void {
 pub fn update(self: *Terminal, event: InputEvent) !void {
     switch (event) {
         .key_press => |k| {
-            const pty_writer = self.get_pty_writer();
-            defer pty_writer.flush() catch {};
+            const pty_writer = self.getPtyWriter();
+            defer pty_writer.flush() catch |err|
+                log.err("pty write failed: {t}", .{err});
             try key.encode(pty_writer, k, true, self.back_screen.csi_u_flags);
         },
     }
 }
 
-pub fn get_pty_writer(self: *Terminal) *std.Io.Writer {
+pub fn getPtyWriter(self: *Terminal) *std.Io.Writer {
     return &self.pty_writer.interface;
 }
 
@@ -311,10 +311,11 @@ fn reader(self: *const Terminal, buf: []u8) std.Io.File.Reader {
 
 /// process the output from the command on the pty
 fn run(self: *Terminal) void {
-    self._run() catch {};
+    self.runFallible() catch |err|
+        log.err("pty read loop exited: {t}", .{err});
 }
 
-fn _run(self: *Terminal) !void {
+fn runFallible(self: *Terminal) !void {
     var parser: Parser = .{
         .buf = try .initCapacity(self.allocator, 128),
     };
@@ -561,8 +562,9 @@ fn _run(self: *Terminal) !void {
                     },
                     // Device Attributes
                     'c' => {
-                        const pty_writer = self.get_pty_writer();
-                        defer pty_writer.flush() catch {};
+                        const pty_writer = self.getPtyWriter();
+                        defer pty_writer.flush() catch |err|
+                            log.err("pty write failed: {t}", .{err});
                         if (seq.private_marker) |pm| {
                             switch (pm) {
                                 // Secondary
@@ -636,8 +638,9 @@ fn _run(self: *Terminal) !void {
                         var iter = seq.iterator(u16);
                         const ps = iter.next() orelse 0;
                         if (seq.intermediate == null and seq.private_marker == null) {
-                            const pty_writer = self.get_pty_writer();
-                            defer pty_writer.flush() catch {};
+                            const pty_writer = self.getPtyWriter();
+                            defer pty_writer.flush() catch |err|
+                                log.err("pty write failed: {t}", .{err});
                             switch (ps) {
                                 5 => try pty_writer.writeAll("\x1b[0n"),
                                 6 => try pty_writer.print("\x1b[{d};{d}R", .{
@@ -655,8 +658,9 @@ fn _run(self: *Terminal) !void {
                             switch (int) {
                                 // report mode
                                 '$' => {
-                                    const pty_writer = self.get_pty_writer();
-                                    defer pty_writer.flush() catch {};
+                                    const pty_writer = self.getPtyWriter();
+                                    defer pty_writer.flush() catch |err|
+                                        log.err("pty write failed: {t}", .{err});
                                     switch (ps) {
                                         2026 => try pty_writer.writeAll("\x1b[?2026;2$p"),
                                         else => {
@@ -681,8 +685,9 @@ fn _run(self: *Terminal) !void {
                             }
                         }
                         if (seq.private_marker) |pm| {
-                            const pty_writer = self.get_pty_writer();
-                            defer pty_writer.flush() catch {};
+                            const pty_writer = self.getPtyWriter();
+                            defer pty_writer.flush() catch |err|
+                                log.err("pty write failed: {t}", .{err});
                             switch (pm) {
                                 // XTVERSION
                                 '>' => try pty_writer.print(

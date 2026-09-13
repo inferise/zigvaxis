@@ -68,6 +68,9 @@ pub fn handleEvent(self: *Spinner, ctx: *vxfw.EventContext, event: vxfw.Event) A
             self.frame += 1;
             if (self.frame >= frames.len) self.frame = 0;
 
+            // The frame only reaches the screen if we ask for a repaint.
+            ctx.redraw = true;
+
             // Update rearm
             try ctx.tick(time_lapse, self.widget());
         },

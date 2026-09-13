@@ -1,12 +1,8 @@
 const std = @import("std");
-const assert = std.debug.assert;
 const atomic = std.atomic;
 
 /// Thread safe. Fixed size. Blocking push and pop.
-pub fn Queue(
-    comptime T: type,
-    comptime size: usize,
-) type {
+pub fn Queue(comptime T: type, comptime size: usize) type {
     return struct {
         buf: [size]T = undefined,
 
@@ -169,7 +165,6 @@ pub fn Queue(
 }
 
 const testing = std.testing;
-const cfg = Thread.SpawnConfig{ .allocator = testing.allocator };
 test "Queue: simple push / pop" {
     const io = std.testing.io;
     var queue: Queue(u8, 16) = .init(io);

@@ -3,7 +3,6 @@ const builtin = @import("builtin");
 
 const vaxis = @import("main.zig");
 
-const ctlseqs = vaxis.ctlseqs;
 const posix = std.posix;
 const windows = std.os.windows;
 
@@ -66,7 +65,8 @@ pub const PosixTty = struct {
         // Set the termios of the tty
         const termios = try makeRaw(f.handle);
         errdefer {
-            posix.tcsetattr(f.handle, .FLUSH, termios) catch {};
+            posix.tcsetattr(f.handle, .FLUSH, termios) catch |err|
+                std.log.scoped(.vaxis).warn("could not restore termios: {t}", .{err});
             f.close(io);
         }
 
@@ -376,8 +376,10 @@ pub const WindowsTty = struct {
 
     pub fn deinit(self: WindowsTty) void {
         _ = SetConsoleOutputCP(self.initial_codepage);
-        setConsoleMode(self.stdin, self.initial_input_mode) catch {};
-        setConsoleMode(self.stdout, self.initial_output_mode) catch {};
+        setConsoleMode(self.stdin, self.initial_input_mode) catch |err|
+            std.log.scoped(.vaxis).warn("could not restore console input mode: {t}", .{err});
+        setConsoleMode(self.stdout, self.initial_output_mode) catch |err|
+            std.log.scoped(.vaxis).warn("could not restore console output mode: {t}", .{err});
         windows.CloseHandle(self.stdin);
         windows.CloseHandle(self.stdout);
     }

@@ -5,7 +5,6 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Winsize = @import("../../main.zig").Winsize;
 
-const linux = std.os.linux;
 const posix = std.posix;
 
 pty: std.Io.File,

@@ -1,5 +1,4 @@
 const std = @import("std");
-const vaxis = @import("../main.zig");
 
 const Allocator = std.mem.Allocator;
 

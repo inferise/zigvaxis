@@ -1,6 +1,5 @@
 const std = @import("std");
-const log = std.log.scoped(.main);
-const vaxis = @import("vaxis");
+const vaxis = @import("zigvaxis");
 
 const TextView = vaxis.widgets.TextView;
 

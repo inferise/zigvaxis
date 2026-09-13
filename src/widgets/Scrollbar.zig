@@ -1,4 +1,3 @@
-const std = @import("std");
 const vaxis = @import("../main.zig");
 
 const Scrollbar = @This();
@@ -25,7 +24,9 @@ pub fn draw(self: Scrollbar, win: vaxis.Window) void {
     // don't draw when all items can be shown
     if (self.view_size >= self.total) return;
 
-    const bar_height = @max(std.math.divCeil(usize, self.view_size * win.height, self.total) catch unreachable, 1);
+    // self.total >= 1 is guaranteed above, so ceil-divide directly rather than
+    // through divCeil's DivisionByZero error.
+    const bar_height = @max((self.view_size * win.height + self.total - 1) / self.total, 1);
     const bar_top = self.top * win.height / self.total;
     var i: usize = 0;
     while (i < bar_height) : (i += 1)

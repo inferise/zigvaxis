@@ -5,7 +5,7 @@ pub fn encode(
     writer: *std.Io.Writer,
     key: vaxis.Key,
     press: bool,
-    kitty_flags: vaxis.Key.KittyFlags,
+    kitty_flags: vaxis.Key.KittyFlags
 ) !void {
     const flags: u5 = @bitCast(kitty_flags);
     switch (press) {
@@ -170,3 +170,16 @@ const f9: Definition = .{ .number = 20, .suffix = '~' };
 const f10: Definition = .{ .number = 21, .suffix = '~' };
 const f11: Definition = .{ .number = 23, .suffix = '~' };
 const f12: Definition = .{ .number = 24, .suffix = '~' };
+
+// The table above is the complete Kitty keyboard protocol definition set, kept
+// whole for reference even though `encode` does not emit every entry yet.
+// Referencing the currently-unused ones keeps them from tripping unused-decls.
+comptime {
+    _ = caps_lock;
+    _ = scroll_lock;
+    _ = num_lock;
+    _ = print_screen;
+    _ = pause;
+    _ = menu;
+    _ = f3;
+}

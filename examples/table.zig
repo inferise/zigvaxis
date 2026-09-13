@@ -2,11 +2,8 @@ const std = @import("std");
 const fmt = std.fmt;
 const heap = std.heap;
 const mem = std.mem;
-const meta = std.meta;
 
-const vaxis = @import("vaxis");
-
-const log = std.log.scoped(.main);
+const vaxis = @import("zigvaxis");
 
 const ActiveSection = enum {
     top,
@@ -99,7 +96,8 @@ pub fn main(init: std.process.Init) !void {
     defer event_arena.deinit();
     while (true) {
         defer _ = event_arena.reset(.retain_capacity);
-        defer tty_writer.flush() catch {};
+        defer tty_writer.flush() catch |err|
+            std.log.err("could not flush the tty: {t}", .{err});
         const event_alloc = event_arena.allocator();
         const event = try loop.nextEvent();
 

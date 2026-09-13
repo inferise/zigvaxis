@@ -9,7 +9,6 @@ const gw = @import("../gwidth.zig");
 
 const Screen = @import("../Screen.zig");
 const Window = @import("../Window.zig");
-const unicode = @import("../unicode.zig");
 const Cell = @import("../Cell.zig");
 
 /// View Allocator

@@ -5,6 +5,8 @@ const builtin = @import("builtin");
 const Pty = @import("Pty.zig");
 const Terminal = @import("Terminal.zig");
 
+const log = std.log.scoped(.terminal);
+
 const linux = std.os.linux;
 const posix = std.posix;
 
@@ -76,7 +78,10 @@ pub fn spawn(self: *Command, io: std.Io, allocator: std.mem.Allocator) !void {
         }
 
         // exec
-        execvpeLinux(argv_block.ptr, env_block, self.argv[0], path) catch {};
+        // In the forked child, where std.log is not async-signal-safe; exit(127)
+        // is what actually reports the failure to the parent.
+        execvpeLinux(argv_block.ptr, env_block, self.argv[0], path) catch |err|
+            log.err("could not exec {s}: {t}", .{ self.argv[0], err });
         linux.exit(127);
     }
 
@@ -111,12 +116,16 @@ fn handleSigChild(_: posix.SIG) callconv(.c) void {
     Terminal.global_vt_mutex.lock(Terminal.global_io) catch return;
     defer Terminal.global_vt_mutex.unlock(Terminal.global_io);
     var vt = Terminal.global_vts.get(pid) orelse return;
-    vt.event_queue.push(.exited) catch {};
+    // Signal-handler context, where std.log is not async-signal-safe. A full queue
+    // means the consumer is already behind and will see the exit on its next read.
+    vt.event_queue.push(.exited) catch |err|
+        log.err("could not queue child exit for pid {d}: {t}", .{ pid, err });
 }
 
 pub fn kill(self: *Command) void {
     if (self.pid) |pid| {
-        posix.kill(pid, posix.SIG.TERM) catch {};
+        posix.kill(pid, posix.SIG.TERM) catch |err|
+            log.debug("could not signal child {d}: {t}", .{ pid, err });
         self.pid = null;
     }
 }
@@ -126,7 +135,7 @@ fn execvpeLinux(
     argv: [*:null]const ?[*:0]const u8,
     env_block: std.process.Environ.PosixBlock,
     arg0: []const u8,
-    path: []const u8,
+    path: []const u8
 ) !noreturn {
     // This implementation is largely copied from std/Io/Threaded.zig
     // (`spawnPosix` + `posixExecv`/`posixExecvPath`) and adapted for this PTY fork path.

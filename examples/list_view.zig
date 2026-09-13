@@ -1,5 +1,5 @@
 const std = @import("std");
-const vaxis = @import("vaxis");
+const vaxis = @import("zigvaxis");
 const vxfw = vaxis.vxfw;
 
 const Text = vxfw.Text;

@@ -1,7 +1,5 @@
 const std = @import("std");
-const vaxis = @import("vaxis");
-
-const log = std.log.scoped(.main);
+const vaxis = @import("zigvaxis");
 
 const Event = union(enum) {
     key_press: vaxis.Key,
