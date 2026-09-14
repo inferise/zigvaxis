@@ -145,6 +145,11 @@ pub fn copyTo(self: *Screen, allocator: std.mem.Allocator, dst: *Screen) !void {
     for (self.buf, 0..) |cell, i| {
         if (!cell.dirty) continue;
         self.buf[i].dirty = false;
+        // The primary back screen is allocated with scrollback, so it is larger
+        // than the visible destination. Cells past the end are scrolled-off
+        // history, which the visible screen does not show; without this the
+        // first line to scroll indexes past `dst.buf`.
+        if (i >= dst.buf.len) continue;
         const grapheme = cell.char.items;
         dst.buf[i].char.clearRetainingCapacity();
         try dst.buf[i].char.appendSlice(allocator, grapheme);
@@ -177,12 +182,7 @@ pub fn withinScrollingRegion(self: Screen) bool {
 }
 
 /// writes a cell to a location. 0 indexed
-pub fn print(
-    self: *Screen,
-    grapheme: []const u8,
-    width: u8,
-    wrap: bool
-) !void {
+pub fn print(self: *Screen, grapheme: []const u8, width: u8, wrap: bool) !void {
     if (self.cursor.pending_wrap) {
         try self.index();
         self.cursor.col = self.scrolling_region.left;

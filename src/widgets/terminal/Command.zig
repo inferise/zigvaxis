@@ -10,6 +10,63 @@ const log = std.log.scoped(.terminal);
 const linux = std.os.linux;
 const posix = std.posix;
 
+/// Process primitives that differ between Linux and Darwin.
+///
+/// Linux goes straight to the syscall layer; Darwin has no raw syscall
+/// interface and must use libc. Selected at comptime, so only the matching
+/// branch is analysed.
+const sys = switch (builtin.os.tag) {
+    .linux => struct {
+        fn fork() isize {
+            return @bitCast(linux.fork());
+        }
+        fn setsid() void {
+            _ = linux.setsid();
+        }
+        fn dup2(old: posix.fd_t, new: posix.fd_t) bool {
+            return linux.errno(linux.dup2(old, new)) == .SUCCESS;
+        }
+        fn chdir(path: [*:0]const u8) bool {
+            return linux.errno(linux.chdir(path)) == .SUCCESS;
+        }
+        fn exit(code: u8) noreturn {
+            linux.exit(code);
+        }
+        fn waitpidAny(status: *u32) isize {
+            const rc = linux.waitpid(-1, status, 0);
+            return switch (linux.errno(rc)) {
+                .SUCCESS => @bitCast(rc),
+                else => -1,
+            };
+        }
+    },
+    .macos, .ios, .tvos, .watchos, .visionos => struct {
+        fn fork() isize {
+            return std.c.fork();
+        }
+        fn setsid() void {
+            _ = std.c.setsid();
+        }
+        fn dup2(old: posix.fd_t, new: posix.fd_t) bool {
+            return std.c.dup2(old, new) >= 0;
+        }
+        fn chdir(path: [*:0]const u8) bool {
+            return std.c.chdir(path) == 0;
+        }
+        fn exit(code: u8) noreturn {
+            std.c._exit(code);
+        }
+        fn waitpidAny(status: *u32) isize {
+            var raw: c_int = undefined;
+            const pid = std.c.waitpid(-1, &raw, 0);
+            if (pid < 0) return -1;
+            status.* = @bitCast(raw);
+            return pid;
+        }
+    },
+    else => @compileError("os not supported"),
+};
+
 argv: []const []const u8,
 
 working_directory: ?[]const u8,
@@ -33,56 +90,37 @@ pub fn spawn(self: *Command, io: std.Io, allocator: std.mem.Allocator) !void {
     const path = self.env_map.get("PATH") orelse std.Io.Threaded.default_PATH;
 
     const pid = pid: {
-        const rc = linux.fork();
-        break :pid switch (linux.errno(rc)) {
-            .SUCCESS => rc,
-            else => return error.ForkError,
-        };
+        const rc = sys.fork();
+        if (rc < 0) return error.ForkError;
+        break :pid rc;
     };
     if (pid == 0) {
         // we are the child
-        _ = std.os.linux.setsid();
+        sys.setsid();
 
         // set the controlling terminal
         var u: c_uint = std.posix.STDIN_FILENO;
-        if (posix.system.ioctl(self.pty.tty.handle, posix.T.IOCSCTTY, @intFromPtr(&u)) != 0) return error.IoctlError;
+        if (posix.system.ioctl(self.pty.tty.handle, comptime Pty.T.req(Pty.T.IOCSCTTY), @intFromPtr(&u)) != 0) return error.IoctlError;
 
         // set up io
-        {
-            const rc = linux.dup2(self.pty.tty.handle, std.posix.STDIN_FILENO);
-            switch (linux.errno(rc)) {
-                .SUCCESS => {},
-                else => return error.Dup2Failed,
-            }
-        }
-        {
-            const rc = linux.dup2(self.pty.tty.handle, std.posix.STDOUT_FILENO);
-            switch (linux.errno(rc)) {
-                .SUCCESS => {},
-                else => return error.Dup2Failed,
-            }
-        }
-        {
-            const rc = linux.dup2(self.pty.tty.handle, std.posix.STDERR_FILENO);
-            switch (linux.errno(rc)) {
-                .SUCCESS => {},
-                else => return error.Dup2Failed,
-            }
-        }
+        if (!sys.dup2(self.pty.tty.handle, std.posix.STDIN_FILENO)) return error.Dup2Failed;
+        if (!sys.dup2(self.pty.tty.handle, std.posix.STDOUT_FILENO)) return error.Dup2Failed;
+        if (!sys.dup2(self.pty.tty.handle, std.posix.STDERR_FILENO)) return error.Dup2Failed;
+
         self.pty.tty.close(io);
         if (self.pty.pty.handle > 2) self.pty.pty.close(io);
 
         if (self.working_directory) |wd| {
             const wd_z = try posix.toPosixPath(wd);
-            if (linux.errno(linux.chdir(&wd_z)) != .SUCCESS) return error.ChdirFailed;
+            if (!sys.chdir(&wd_z)) return error.ChdirFailed;
         }
 
         // exec
         // In the forked child, where std.log is not async-signal-safe; exit(127)
         // is what actually reports the failure to the parent.
-        execvpeLinux(argv_block.ptr, env_block, self.argv[0], path) catch |err|
+        execvpePosix(argv_block.ptr, env_block, self.argv[0], path) catch |err|
             log.err("could not exec {s}: {t}", .{ self.argv[0], err });
-        linux.exit(127);
+        sys.exit(127);
     }
 
     // we are the parent
@@ -107,11 +145,9 @@ pub fn spawn(self: *Command, io: std.Io, allocator: std.mem.Allocator) !void {
 
 fn handleSigChild(_: posix.SIG) callconv(.c) void {
     var status: u32 = undefined;
-    const rc = linux.waitpid(-1, &status, 0);
-    const pid: i32 = switch (linux.errno(rc)) {
-        .SUCCESS => @intCast(rc),
-        else => return,
-    };
+    const rc = sys.waitpidAny(&status);
+    if (rc < 0) return;
+    const pid: i32 = @intCast(rc);
 
     Terminal.global_vt_mutex.lock(Terminal.global_io) catch return;
     defer Terminal.global_vt_mutex.unlock(Terminal.global_io);
@@ -131,12 +167,7 @@ pub fn kill(self: *Command) void {
 }
 
 // Keep fork->exec child path allocation-free, following std/Io/Threaded.zig:posixExecv
-fn execvpeLinux(
-    argv: [*:null]const ?[*:0]const u8,
-    env_block: std.process.Environ.PosixBlock,
-    arg0: []const u8,
-    path: []const u8
-) !noreturn {
+fn execvpePosix(argv: [*:null]const ?[*:0]const u8, env_block: std.process.Environ.PosixBlock, arg0: []const u8, path: []const u8) !noreturn {
     // This implementation is largely copied from std/Io/Threaded.zig
     // (`spawnPosix` + `posixExecv`/`posixExecvPath`) and adapted for this PTY fork path.
     if (std.mem.indexOfScalar(u8, arg0, '/') != null) {

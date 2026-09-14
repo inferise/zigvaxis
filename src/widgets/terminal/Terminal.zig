@@ -29,7 +29,6 @@ const QueuedEvent = union(enum) {
 };
 const Queue = vaxis.Queue(QueuedEvent, 16);
 
-
 const log = std.log.scoped(.terminal);
 
 pub const Options = struct {
@@ -93,14 +92,7 @@ event_text: ?[]u8 = null,
 
 /// initialize a Terminal. This sets the size of the underlying pty and allocates the sizes of the
 /// screen
-pub fn init(
-    io: std.Io,
-    allocator: std.mem.Allocator,
-    argv: []const []const u8,
-    env: *const std.process.Environ.Map,
-    opts: Options,
-    write_buf: []u8
-) !Terminal {
+pub fn init(io: std.Io, allocator: std.mem.Allocator, argv: []const []const u8, env: *const std.process.Environ.Map, opts: Options, write_buf: []u8) !Terminal {
     if (!global_io_initialized) {
         global_io = io;
         global_io_initialized = true;
@@ -192,6 +184,7 @@ pub fn spawn(self: *Terminal) !void {
     } else {
         const pwd: std.Io.Dir = .cwd();
         const out_path = try pwd.realPathFileAlloc(self.io, ".", self.allocator);
+        defer self.allocator.free(out_path);
         try self.working_directory.appendSlice(self.allocator, out_path);
     }
 
