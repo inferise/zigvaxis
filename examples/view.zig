@@ -207,7 +207,7 @@ const sm_world_map =
 ;
 const sm_map_width = mapWidth: {
     @setEvalBranchQuota(100_000);
-    break :mapWidth mem.indexOfScalar(u8, sm_world_map, '\n').?;
+    break :mapWidth mem.findScalar(u8, sm_world_map, '\n').?;
 };
 const sm_map_height = mapHeight: {
     @setEvalBranchQuota(100_000);
@@ -340,7 +340,7 @@ const lg_world_map =
 ;
 const lg_map_width: u16 = mapWidth: {
     @setEvalBranchQuota(100_000);
-    break :mapWidth @intCast(mem.indexOfScalar(u8, lg_world_map, '\n').?);
+    break :mapWidth @intCast(mem.findScalar(u8, lg_world_map, '\n').?);
 };
 const lg_map_height: u16 = mapHeight: {
     @setEvalBranchQuota(100_000);

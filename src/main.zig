@@ -57,14 +57,14 @@ pub const Panic = std.debug.FullPanic(panicCall);
 /// Resets terminal state on a panic, then calls the default zig panic handler.
 ///
 /// This is the legacy form, for `pub const panic = vaxis.panicHandler;`. Apps on
-/// the `std.builtin.Panic` interface want `pub const panic = vaxis.Panic;`, which
+/// the `std.lang.Panic` interface want `pub const panic = vaxis.Panic;`, which
 /// routes through `panicCall` instead.
-pub fn panicHandler(msg: []const u8, _: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
+pub fn panicHandler(msg: []const u8, _: ?*std.lang.StackTrace, ret_addr: ?usize) noreturn {
     recover();
     std.debug.defaultPanic(msg, ret_addr);
 }
 
-/// `Panic.call`: the two-argument shape `std.builtin.Panic` requires.
+/// `Panic.call`: the two-argument shape `std.lang.Panic` requires.
 ///
 /// Kept separate from `panicHandler` so both spellings of the root `panic`
 /// declaration keep working.

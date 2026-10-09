@@ -379,7 +379,7 @@ pub const Gallery = struct {
                     .origin = .{ .row = 0, .col = 0 },
                     .surface = try self.button.widget().draw(ctx.withConstraints(.{}, .{ .width = 16, .height = 3 })),
                 });
-                const count = try std.fmt.allocPrint(ctx.arena, "clicks: {d}", .{self.clicks});
+                const count = try ctx.arena.print("clicks: {d}", .{self.clicks});
                 try line(ctx, &kids, 4, size.width, count, .{ .bold = true });
                 try line(ctx, &kids, 6, size.width, "enter activates it while focused; the mouse works too", .{ .dim = true });
             },

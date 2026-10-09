@@ -156,7 +156,7 @@ const Model = struct {
             var i: usize = 0;
             var iter = vaxis.unicode.graphemeIterator(str);
             while (iter.next()) |g| {
-                if (std.mem.indexOfPos(u8, tgt, i, g.bytes(str))) |idx| {
+                if (std.mem.findPos(u8, tgt, i, g.bytes(str))) |idx| {
                     const up_to_here: vxfw.RichText.TextSpan = .{ .text = item.text[i..idx] };
                     const match: vxfw.RichText.TextSpan = .{
                         .text = item.text[idx .. idx + g.len],

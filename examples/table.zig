@@ -199,7 +199,7 @@ pub fn main(init: std.process.Init) !void {
                 bg: vaxis.Color,
             };
             const row_ctx = RowContext{
-                .row = try fmt.allocPrint(event_alloc, "Row #: {d}", .{demo_tbl.row}),
+                .row = try event_alloc.print("Row #: {d}", .{demo_tbl.row}),
                 .bg = demo_tbl.active_bg,
             };
             demo_tbl.active_ctx = &row_ctx;

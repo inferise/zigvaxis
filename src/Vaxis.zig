@@ -145,7 +145,7 @@ pub fn resetState(self: *Vaxis, tty: *std.Io.Writer) !void {
     if (self.screen.cursor_shape != .default) {
         // In many terminals, `.default` will set to the configured cursor shape. Others, it will
         // change to a blinking block.
-        tty.print(ctlseqs.cursor_shape, .{@intFromEnum(Cell.CursorShape.default)}) catch {};
+        tty.print(ctlseqs.cursor_shape, .{@backingInt(Cell.CursorShape.default)}) catch {};
     }
     if (self.state.kitty_keyboard) {
         try tty.writeAll(ctlseqs.csi_u_pop);
@@ -772,7 +772,7 @@ pub fn render(self: *Vaxis, tty: *std.Io.Writer) !void {
                             w,
                             scale.numerator,
                             scale.denominator,
-                            @intFromEnum(scale.vertical_alignment),
+                            @backingInt(scale.vertical_alignment),
                             cell.char.grapheme,
                         },
                     );
@@ -844,7 +844,7 @@ pub fn render(self: *Vaxis, tty: *std.Io.Writer) !void {
     if (self.screen.cursor_shape != self.screen_last.cursor_shape) {
         try tty.print(
             ctlseqs.cursor_shape,
-            .{@intFromEnum(self.screen.cursor_shape)},
+            .{@backingInt(self.screen.cursor_shape)},
         );
         self.screen_last.cursor_shape = self.screen.cursor_shape;
     }
@@ -1492,12 +1492,12 @@ pub fn prettyPrint(self: *Vaxis, tty: *std.Io.Writer) !void {
 }
 
 /// Set the terminal's current working directory
-pub fn setTerminalWorkingDirectory(_: *Vaxis, tty: *std.Io.Writer, path: []const u8) !void {
+pub fn setTerminalWorkingDirectory(self: *Vaxis, tty: *std.Io.Writer, path: []const u8) !void {
     if (path.len == 0 or path[0] != '/')
         return error.InvalidAbsolutePath;
     const hostname = switch (builtin.os.tag) {
         .windows => null,
-        else => std.posix.getenv("HOSTNAME"),
+        else => self.env_map.get("HOSTNAME"),
     } orelse "localhost";
 
     const uri: std.Uri = .{

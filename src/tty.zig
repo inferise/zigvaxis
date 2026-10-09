@@ -277,8 +277,8 @@ pub const PosixTty = struct {
         raw.cflag.CSIZE = .CS8;
         raw.cflag.PARENB = false;
 
-        raw.cc[@intFromEnum(posix.V.MIN)] = 1;
-        raw.cc[@intFromEnum(posix.V.TIME)] = 0;
+        raw.cc[@backingInt(posix.V.MIN)] = 1;
+        raw.cc[@backingInt(posix.V.TIME)] = 0;
         try posix.tcsetattr(fd, .FLUSH, raw);
         return state;
     }

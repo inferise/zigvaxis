@@ -99,7 +99,7 @@ pub fn init(io: std.Io, allocator: std.mem.Allocator, argv: []const []const u8, 
     }
     // Verify we have an absolute path
     if (opts.initial_working_directory) |pwd| {
-        if (!std.fs.path.isAbsolute(pwd)) return error.InvalidWorkingDirectory;
+        if (!std.Io.Dir.path.isAbsolute(pwd)) return error.InvalidWorkingDirectory;
     }
     const pty = try Pty.init(io);
     errdefer pty.deinit(io);
@@ -672,7 +672,7 @@ fn runFallible(self: *Terminal) !void {
                                 ' ' => {
                                     var iter = seq.iterator(u8);
                                     const shape = iter.next() orelse 0;
-                                    self.back_screen.cursor.shape = @enumFromInt(shape);
+                                    self.back_screen.cursor.shape = @fromBackingInt(@intCast(shape));
                                 },
                                 else => {},
                             }
@@ -719,7 +719,7 @@ fn runFallible(self: *Terminal) !void {
                 }
             },
             .osc => |osc| {
-                const semicolon = std.mem.indexOfScalar(u8, osc, ';') orelse {
+                const semicolon = std.mem.findScalar(u8, osc, ';') orelse {
                     log.info("unhandled osc: {s}", .{osc});
                     continue;
                 };
@@ -740,7 +740,7 @@ fn runFallible(self: *Terminal) !void {
                         log.err("osc: {s}", .{osc});
                         self.working_directory.clearRetainingCapacity();
                         const scheme = "file://";
-                        const start = std.mem.indexOfScalarPos(u8, osc, semicolon + 2 + scheme.len + 1, '/') orelse {
+                        const start = std.mem.findScalarPos(u8, osc, semicolon + 2 + scheme.len + 1, '/') orelse {
                             log.info("unknown OSC 7 format: {s}", .{osc});
                             continue;
                         };
@@ -777,7 +777,7 @@ inline fn handleC0(self: *Terminal, b: ansi.C0) !void {
         .CR => self.carriageReturn(),
         .SO => {}, // TODO: Charset shift out
         .SI => {}, // TODO: Charset shift in
-        else => log.warn("unhandled C0: 0x{x}", .{@intFromEnum(b)}),
+        else => log.warn("unhandled C0: 0x{x}", .{@backingInt(b)}),
     }
 }
 

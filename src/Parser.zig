@@ -218,7 +218,7 @@ inline fn parseApc(input: []const u8) Result {
             .n = 0,
         };
     }
-    const end = std.mem.indexOfScalarPos(u8, input, 2, 0x1b) orelse return .{
+    const end = std.mem.findScalarPos(u8, input, 2, 0x1b) orelse return .{
         .event = null,
         .n = 0,
     };
@@ -244,7 +244,7 @@ inline fn skipUntilST(input: []const u8) Result {
             .n = 0,
         };
     }
-    const end = std.mem.indexOfScalarPos(u8, input, 2, 0x1b) orelse return .{
+    const end = std.mem.findScalarPos(u8, input, 2, 0x1b) orelse return .{
         .event = null,
         .n = 0,
     };
@@ -307,12 +307,12 @@ inline fn parseOsc(input: []const u8, paste_allocator: ?std.mem.Allocator) !Resu
     // slices must never go past this
     const payload_end = if (bel_terminated) sequence.len - 1 else sequence.len - 2;
 
-    const semicolon_idx = std.mem.indexOfScalarPos(u8, sequence[0..payload_end], 2, ';') orelse return null_event;
+    const semicolon_idx = std.mem.findScalarPos(u8, sequence[0..payload_end], 2, ';') orelse return null_event;
     const ps = std.fmt.parseUnsigned(u8, sequence[2..semicolon_idx], 10) catch return null_event;
 
     switch (ps) {
         4 => {
-            const color_idx_delim = std.mem.indexOfScalarPos(u8, sequence[0..payload_end], semicolon_idx + 1, ';') orelse return null_event;
+            const color_idx_delim = std.mem.findScalarPos(u8, sequence[0..payload_end], semicolon_idx + 1, ';') orelse return null_event;
             const ps_idx = std.fmt.parseUnsigned(u8, sequence[semicolon_idx + 1 .. color_idx_delim], 10) catch return null_event;
             const color_spec = sequence[color_idx_delim + 1 .. payload_end];
 
@@ -565,7 +565,7 @@ inline fn parseCsi(input: []const u8, text_buf: []u8, cursor_position_requests: 
             std.debug.assert(sequence.len >= 3);
             switch (sequence[2]) {
                 '?' => {
-                    const delim_idx = std.mem.indexOfScalarPos(u8, input, 3, ';') orelse return null_event;
+                    const delim_idx = std.mem.findScalarPos(u8, input, 3, ';') orelse return null_event;
                     const ps = std.fmt.parseUnsigned(u16, input[3..delim_idx], 10) catch return null_event;
                     switch (ps) {
                         997 => {
@@ -706,7 +706,7 @@ inline fn parseCsi(input: []const u8, text_buf: []u8, cursor_position_requests: 
         },
         'y' => {
             // DECRPM (CSI ? Ps ; Pm $ y)
-            const delim_idx = std.mem.indexOfScalarPos(u8, input, 3, ';') orelse return null_event;
+            const delim_idx = std.mem.findScalarPos(u8, input, 3, ';') orelse return null_event;
             const ps = std.fmt.parseUnsigned(u16, input[3..delim_idx], 10) catch return null_event;
             const pm = std.fmt.parseUnsigned(u8, input[delim_idx + 1 .. sequence.len - 2], 10) catch return null_event;
             switch (ps) {
@@ -764,9 +764,9 @@ inline fn parseMouse(input: []const u8, full_input: []const u8) Result {
         py = full_input[5] - 32;
     } else if (input.len >= 4 and input[2] == '<') {
         xterm = false;
-        const delim1 = std.mem.indexOfScalarPos(u8, input, 3, ';') orelse return null_event;
+        const delim1 = std.mem.findScalarPos(u8, input, 3, ';') orelse return null_event;
         button_mask = parseParam(u16, input[3..delim1], null) orelse return null_event;
-        const delim2 = std.mem.indexOfScalarPos(u8, input, delim1 + 1, ';') orelse return null_event;
+        const delim2 = std.mem.findScalarPos(u8, input, delim1 + 1, ';') orelse return null_event;
         px = parseParam(i16, input[delim1 + 1 .. delim2], 1) orelse return null_event;
         py = parseParam(i16, input[delim2 + 1 .. input.len - 1], 1) orelse return null_event;
     } else {
@@ -776,7 +776,7 @@ inline fn parseMouse(input: []const u8, full_input: []const u8) Result {
     if (button_mask & mouse_bits.leave > 0)
         return .{ .event = .mouse_leave, .n = if (xterm) 6 else input.len };
 
-    const button: Mouse.Button = @enumFromInt(button_mask & mouse_bits.buttons);
+    const button: Mouse.Button = @fromBackingInt(@intCast(button_mask & mouse_bits.buttons));
     const motion = button_mask & mouse_bits.motion > 0;
     const shift = button_mask & mouse_bits.shift > 0;
     const alt = button_mask & mouse_bits.alt > 0;

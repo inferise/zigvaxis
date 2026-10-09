@@ -33,7 +33,7 @@ const sys = switch (builtin.os.tag) {
             linux.exit(code);
         }
         fn waitpidAny(status: *u32) isize {
-            const rc = linux.waitpid(-1, status, 0);
+            const rc = linux.waitpid(-1, @ptrCast(status), 0);
             return switch (linux.errno(rc)) {
                 .SUCCESS => @bitCast(rc),
                 else => -1,
@@ -83,9 +83,9 @@ pub fn spawn(self: *Command, io: std.Io, allocator: std.mem.Allocator) !void {
     defer arena_allocator.deinit();
     const arena = arena_allocator.allocator();
 
-    // Keep fork->exec child path allocation-free, following std/Io/Threaded.zig:posixExecv
+    // Keep fork->exec child path allocation-free, following std/Io/Threaded.zig:posixExec
     const argv_block = try arena.allocSentinel(?[*:0]const u8, self.argv.len, null);
-    for (self.argv, 0..) |arg, i| argv_block[i] = (try arena.dupeZ(u8, arg)).ptr;
+    for (self.argv, 0..) |arg, i| argv_block[i] = (try arena.dupeSentinel(u8, arg, 0)).ptr;
     const env_block = try self.env_map.createPosixBlock(arena, .{});
     const path = self.env_map.get("PATH") orelse std.Io.Threaded.default_PATH;
 
@@ -166,16 +166,17 @@ pub fn kill(self: *Command) void {
     }
 }
 
-// Keep fork->exec child path allocation-free, following std/Io/Threaded.zig:posixExecv
+// Keep fork->exec child path allocation-free, following std/Io/Threaded.zig:posixExec
 fn execvpePosix(argv: [*:null]const ?[*:0]const u8, env_block: std.process.Environ.PosixBlock, arg0: []const u8, path: []const u8) !noreturn {
     // This implementation is largely copied from std/Io/Threaded.zig
-    // (`spawnPosix` + `posixExecv`/`posixExecvPath`) and adapted for this PTY fork path.
-    if (std.mem.indexOfScalar(u8, arg0, '/') != null) {
+    // (`spawnPosix` + `posixExec`/`posixExecveat`) and adapted for this PTY fork path.
+    // `posixExecveat` with `AT.FDCWD` is a plain execve(2) of the given path.
+    if (std.mem.findScalar(u8, arg0, '/') != null) {
         const path_z = try posix.toPosixPath(arg0);
-        return std.Io.Threaded.posixExecvPath(&path_z, argv, env_block);
+        return std.Io.Threaded.posixExecveat(posix.AT.FDCWD, &path_z, argv, env_block);
     }
 
-    var it = std.mem.tokenizeScalar(u8, path, std.fs.path.delimiter);
+    var it = std.mem.tokenizeScalar(u8, path, std.Io.Dir.path.delimiter);
     var path_buf: [posix.PATH_MAX]u8 = undefined;
     var err: std.process.ReplaceError = error.FileNotFound;
     var seen_eacces = false;
@@ -188,7 +189,7 @@ fn execvpePosix(argv: [*:null]const ?[*:0]const u8, env_block: std.process.Envir
         @memcpy(path_buf[dir.len + 1 ..][0..arg0.len], arg0);
         path_buf[path_len] = 0;
         const full_path = path_buf[0..path_len :0].ptr;
-        err = std.Io.Threaded.posixExecvPath(full_path, argv, env_block);
+        err = std.Io.Threaded.posixExecveat(posix.AT.FDCWD, full_path, argv, env_block);
         switch (err) {
             error.AccessDenied => seen_eacces = true,
             error.FileNotFound, error.NotDir => {},

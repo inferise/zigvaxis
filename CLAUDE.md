@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project
 
 `vaxis` — a Zig TUI library (a fork of rockorager's libvaxis; README, docs URLs, and the mirror workflow still
-point upstream). Requires Zig **0.16.0** (`.minimum_zig_version` in `build.zig.zon`). This is a 0.16-era codebase
+point upstream). Requires Zig **0.17.0** (`.minimum_zig_version` in `build.zig.zon`). This is a 0.17-era codebase
 built on the new `std.Io` API — `std.Io.File`, `std.Io.Writer`, `std.Io.Mutex`, `std.process.Init`. Pre-0.16
 idioms will not compile; see @styleguide/ZIGMIGRATE.md before reaching for an older API.
 

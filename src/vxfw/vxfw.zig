@@ -564,7 +564,7 @@ test "All widgets have a doctest and refAllDecls test" {
         var has_doctest: bool = false;
         var has_refAllDecls: bool = false;
         for (ast.rootDecls()) |root_decl| {
-            const decl = ast.nodes.get(@intFromEnum(root_decl));
+            const decl = ast.nodes.get(@backingInt(root_decl));
             switch (decl.tag) {
                 .test_decl => {
                     const test_name = ast.tokenSlice(decl.main_token + 1);

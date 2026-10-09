@@ -168,7 +168,7 @@ pub const DemoApp = struct {
     /// Switches to a demo, focusing whatever widget makes it interactive.
     fn open(self: *Self, ctx: *vxfw.EventContext, demo: Demo) anyerror!void {
         self.active = demo;
-        self.cursor = @intFromEnum(demo);
+        self.cursor = @backingInt(demo);
         // The spinner animates off a Tick command, so it only runs while shown.
         if (demo == .spinner) {
             if (self.views.spinner.start()) |cmd| try ctx.addCmd(cmd);
@@ -209,7 +209,7 @@ pub const DemoApp = struct {
             const row_idx = menu_top + @as(u16, @intCast(i));
             if (row_idx >= max.height -| 2) break;
             const selected = i == self.cursor;
-            const text = try std.fmt.allocPrint(ctx.arena, "{s}  {c}  {s: <22} {s}", .{
+            const text = try ctx.arena.print("{s}  {c}  {s: <22} {s}", .{
                 if (selected) ">" else " ",
                 selector(i),
                 demo.title(),
@@ -222,7 +222,7 @@ pub const DemoApp = struct {
             try self.row(ctx, &kids, row_idx, max.width, text, style);
         }
 
-        const footer = try std.fmt.allocPrint(ctx.arena, "a-{c} or arrows to choose  .  enter to open  .  q to quit", .{selector(demos.len - 1)});
+        const footer = try ctx.arena.print("a-{c} or arrows to choose  .  enter to open  .  q to quit", .{selector(demos.len - 1)});
         try self.row(ctx, &kids, max.height -| 1, max.width, footer, .{ .dim = true });
 
         return .{
@@ -237,8 +237,8 @@ pub const DemoApp = struct {
     fn drawDemo(self: *Self, ctx: vxfw.DrawContext, max: vxfw.Size, demo: Demo) Allocator.Error!vxfw.Surface {
         var kids: std.ArrayList(vxfw.SubSurface) = .empty;
 
-        const heading = try std.fmt.allocPrint(ctx.arena, "{c}. {s} - {s}", .{
-            selector(@intFromEnum(demo)),
+        const heading = try ctx.arena.print("{c}. {s} - {s}", .{
+            selector(@backingInt(demo)),
             demo.title(),
             demo.blurb(),
         });

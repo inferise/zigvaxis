@@ -4,9 +4,9 @@ const std = @import("std");
 const version_string = blk: {
     const zon = @embedFile("build.zig.zon");
     const marker = ".version = \"";
-    const start = (std.mem.indexOf(u8, zon, marker) orelse
+    const start = (std.mem.find(u8, zon, marker) orelse
         @compileError("no version in build.zig.zon")) + marker.len;
-    const end = std.mem.indexOfScalarPos(u8, zon, start, '"') orelse
+    const end = std.mem.findScalarPos(u8, zon, start, '"') orelse
         @compileError("unterminated version in build.zig.zon");
     break :blk zon[start..end];
 };

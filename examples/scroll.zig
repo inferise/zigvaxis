@@ -17,7 +17,7 @@ const ModelRow = struct {
     fn typeErasedDrawFn(ptr: *anyopaque, ctx: vxfw.DrawContext) std.mem.Allocator.Error!vxfw.Surface {
         const self: *ModelRow = @ptrCast(@alignCast(ptr));
 
-        const idx_text = try std.fmt.allocPrint(ctx.arena, "{d: >4}", .{self.idx});
+        const idx_text = try ctx.arena.print("{d: >4}", .{self.idx});
         const idx_widget: vxfw.Text = .{ .text = idx_text };
 
         const idx_surf: vxfw.SubSurface = .{

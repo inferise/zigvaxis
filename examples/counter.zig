@@ -60,7 +60,7 @@ const Model = struct {
         // temporary allocations such as the one below: we have an integer we want to print as text.
         // We can safely allocate this with the ctx arena since we only need it for this frame.
         if (self.count > 0) {
-            self.button.label = try std.fmt.allocPrint(ctx.arena, "Clicks: {d}", .{self.count});
+            self.button.label = try ctx.arena.print("Clicks: {d}", .{self.count});
         } else {
             self.button.label = "Click me!";
         }

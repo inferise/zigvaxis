@@ -175,7 +175,7 @@ pub const LineIterator = struct {
         if (self.index >= self.buf.len) return null;
 
         const start = self.index;
-        const end = std.mem.indexOfAnyPos(u8, self.buf, self.index, "\r\n") orelse {
+        const end = std.mem.findAnyPos(u8, self.buf, self.index, "\r\n") orelse {
             self.index = self.buf.len;
             return self.buf[start..];
         };
@@ -257,7 +257,7 @@ pub const SoftwrapIterator = struct {
                     }
                     // We are softwrapping, advance index to the start of the next word
                     const end = self.index;
-                    self.index = std.mem.indexOfNonePos(u8, self.line, self.index, soft_breaks) orelse self.line.len;
+                    self.index = std.mem.findNonePos(u8, self.line, self.index, soft_breaks) orelse self.line.len;
                     return .{ .width = cur_width, .bytes = self.line[start..end] };
                 }
             }
@@ -271,9 +271,9 @@ pub const SoftwrapIterator = struct {
     /// Determines the index of the end of the next word
     fn nextWrap(self: *SoftwrapIterator) usize {
         // Find the first linear whitespace char
-        const start_pos = std.mem.indexOfNonePos(u8, self.line, self.index, soft_breaks) orelse
+        const start_pos = std.mem.findNonePos(u8, self.line, self.index, soft_breaks) orelse
             return self.line.len;
-        if (std.mem.indexOfAnyPos(u8, self.line, start_pos, soft_breaks)) |idx| {
+        if (std.mem.findAnyPos(u8, self.line, start_pos, soft_breaks)) |idx| {
             return idx;
         }
         return self.line.len;

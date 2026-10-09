@@ -122,7 +122,7 @@ pub fn writeCell(self: *@This(), parent: vaxis.Window, col: usize, row: usize, c
 /// Use this function instead of `Window.readCell` to read the correct cell in scrolling context.
 pub fn readCell(self: *@This(), parent: vaxis.Window, col: usize, row: usize) ?vaxis.Cell {
     const b = self.bounds(parent);
-    if (!b.inside(col, row)) return;
+    if (!b.inside(col, row)) return null;
     const win = parent.child(.{ .width = @intCast(b.x2 - b.x1), .height = @intCast(b.y2 - b.y1) });
     return win.readCell(@intCast(col -| self.scroll.x), @intCast(row -| self.scroll.y));
 }

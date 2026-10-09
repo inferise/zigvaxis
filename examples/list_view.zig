@@ -76,7 +76,7 @@ pub fn main(init: std.process.Init) !void {
     }
 
     for (0..n) |i| {
-        const t = std.fmt.allocPrint(alloc, "List Item {d} of {d}", .{ i, n }) catch "placeholder";
+        const t = alloc.print("List Item {d} of {d}", .{ i, n }) catch "placeholder";
         const tw = try alloc.create(Text);
         tw.* = .{ .text = t };
         _ = try allocs.append(alloc, tw);

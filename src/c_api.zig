@@ -292,7 +292,7 @@ fn populateEnv(map: *std.process.Environ.Map, entries: ?[*]const CEnvVar, count:
         const key = sliceFrom(entry.key.ptr, entry.key.len) orelse return error.Invalid;
         const value = sliceFrom(entry.value.ptr, entry.value.len) orelse return error.Invalid;
         if (!std.process.Environ.Map.validateKeyForPut(key) or
-            std.mem.indexOfScalar(u8, value, 0) != null)
+            std.mem.findScalar(u8, value, 0) != null)
             return error.Invalid;
         map.put(key, value) catch return error.OutOfMemory;
     }
@@ -325,7 +325,7 @@ fn zigStyle(style: CStyle) ?Cell.Style {
         .fg = zigColor(style.fg) orelse return null,
         .bg = zigColor(style.bg) orelse return null,
         .ul = zigColor(style.ul) orelse return null,
-        .ul_style = @enumFromInt(style.underline),
+        .ul_style = @fromBackingInt(@intCast(style.underline)),
         .bold = style.attrs & 1 != 0,
         .dim = style.attrs & 2 != 0,
         .italic = style.attrs & 4 != 0,
@@ -345,7 +345,7 @@ fn cStyle(style: Cell.Style) CStyle {
     if (style.reverse) attrs |= 16;
     if (style.invisible) attrs |= 32;
     if (style.strikethrough) attrs |= 64;
-    return .{ .fg = cColor(style.fg), .bg = cColor(style.bg), .ul = cColor(style.ul), .underline = @intFromEnum(style.ul_style), .attrs = attrs };
+    return .{ .fg = cColor(style.fg), .bg = cColor(style.bg), .ul = cColor(style.ul), .underline = @backingInt(style.ul_style), .attrs = attrs };
 }
 
 fn copyCell(strings: *GraphemeStore, cell: CCell) error{ Invalid, OutOfMemory }!Cell {
@@ -462,7 +462,7 @@ pub fn window_show_cursor(window: ?*CWindow, col: u16, row: u16) callconv(.c) vo
     if (window) |w| w.window.showCursor(col, row);
 }
 pub fn window_set_cursor_shape(window: ?*CWindow, shape: u8) callconv(.c) void {
-    if (window) |w| if (shape <= 6) w.window.setCursorShape(@enumFromInt(shape));
+    if (window) |w| if (shape <= 6) w.window.setCursorShape(@fromBackingInt(@intCast(shape)));
 }
 pub fn window_scroll(window: ?*CWindow, rows: u16) callconv(.c) void {
     if (window) |w| w.window.scroll(rows);
@@ -486,7 +486,7 @@ pub fn window_print(window: ?*CWindow, segments: ?[*]const CSegment, count: usiz
         const owned = w.strings.dupe(text) catch return .err_oom;
         zs[i] = .{ .text = owned, .style = zigStyle(cs.style) orelse return .err_invalid };
     }
-    const r = w.window.print(zs, .{ .row_offset = opts.row_offset, .col_offset = opts.col_offset, .wrap = @enumFromInt(opts.wrap), .commit = opts.commit });
+    const r = w.window.print(zs, .{ .row_offset = opts.row_offset, .col_offset = opts.col_offset, .wrap = @fromBackingInt(@intCast(opts.wrap)), .commit = opts.commit });
     w.strings.compactIfNeeded(w.window.screen) catch return .err_oom;
     result.* = .{ .col = r.col, .row = r.row, .overflow = r.overflow };
     return .ok;
@@ -593,7 +593,7 @@ pub fn image_draw(image: ?*const CImage, window: ?*CWindow, opts: CImageDrawOpti
     const i = image orelse return .err_invalid;
     const w = window orelse return .err_invalid;
     if (opts.scale < 0 or opts.scale > 3) return .err_invalid;
-    i.image.draw(w.window, .{ .scale = @enumFromInt(opts.scale), .z_index = if (opts.has_z_index) opts.z_index else null }) catch return .err_range;
+    i.image.draw(w.window, .{ .scale = @fromBackingInt(@intCast(opts.scale)), .z_index = if (opts.has_z_index) opts.z_index else null }) catch return .err_range;
     return .ok;
 }
 pub fn image_cell_size(image: ?*const CImage, window: ?*const CWindow, cols: ?*u16, rows: ?*u16) callconv(.c) Result {
@@ -1023,7 +1023,7 @@ pub fn runtime_transmit_image_path(runtime: ?*CRuntime, path: ?[*]const u8, len:
     if (medium < 0 or medium > 2 or format < 0 or format > 2) return .err_invalid;
     const allocator = r.allocator.get();
     const handle = prepareImage(r, out) catch |err| return if (err == error.OutOfMemory) .err_oom else .err_invalid;
-    const img = r.vx.?.transmitLocalImagePath(allocator, r.tty.tty.?.writer(), p, width, height, @enumFromInt(medium), @enumFromInt(format)) catch {
+    const img = r.vx.?.transmitLocalImagePath(allocator, r.tty.tty.?.writer(), p, width, height, @fromBackingInt(@intCast(medium)), @fromBackingInt(@intCast(format))) catch {
         allocator.destroy(handle);
         return .err_io;
     };
@@ -1037,7 +1037,7 @@ pub fn runtime_transmit_image_base64(runtime: ?*CRuntime, data: ?[*]const u8, le
     if (format < 0 or format > 2) return .err_invalid;
     const allocator = r.allocator.get();
     const handle = prepareImage(r, out) catch |err| return if (err == error.OutOfMemory) .err_oom else .err_invalid;
-    const img = r.vx.?.transmitPreEncodedImage(r.tty.tty.?.writer(), b, width, height, @enumFromInt(format)) catch {
+    const img = r.vx.?.transmitPreEncodedImage(r.tty.tty.?.writer(), b, width, height, @fromBackingInt(@intCast(format))) catch {
         allocator.destroy(handle);
         return .err_io;
     };
@@ -1200,7 +1200,7 @@ pub fn event_mouse_row(event: ?*const CEvent) callconv(.c) i16 {
 
 pub fn event_mouse_button(event: ?*const CEvent) callconv(.c) u8 {
     const mouse = mouseOf(event) orelse return 0;
-    return @intFromEnum(mouse.button);
+    return @backingInt(mouse.button);
 }
 
 pub fn event_mouse_mods(event: ?*const CEvent) callconv(.c) u8 {
@@ -1210,7 +1210,7 @@ pub fn event_mouse_mods(event: ?*const CEvent) callconv(.c) u8 {
 
 pub fn event_mouse_type(event: ?*const CEvent) callconv(.c) u8 {
     const mouse = mouseOf(event) orelse return 0;
-    return @intFromEnum(mouse.type);
+    return @backingInt(mouse.type);
 }
 
 pub fn event_paste_text(event: ?*const CEvent) callconv(.c) CString {
@@ -1222,7 +1222,7 @@ pub fn event_paste_text(event: ?*const CEvent) callconv(.c) CString {
 pub fn event_color_report_kind(event: ?*const CEvent) callconv(.c) u8 {
     const e = event orelse return 0;
     if (e.type != .color_report) return 0;
-    return @intFromEnum(std.meta.activeTag(e.color_report.kind));
+    return @backingInt(std.meta.activeTag(e.color_report.kind));
 }
 
 pub fn event_color_report_index(event: ?*const CEvent) callconv(.c) u8 {
@@ -1245,7 +1245,7 @@ pub fn event_color_report_rgb(event: ?*const CEvent) callconv(.c) CRgb {
 pub fn event_color_scheme(event: ?*const CEvent) callconv(.c) u8 {
     const e = event orelse return 0;
     if (e.type != .color_scheme) return 0;
-    return @intFromEnum(e.color_scheme);
+    return @backingInt(e.color_scheme);
 }
 
 pub fn event_winsize_rows(event: ?*const CEvent) callconv(.c) u16 {
@@ -1346,7 +1346,7 @@ fn comptimeUpper(comptime name: []const u8) []const u8 {
 
 fn asInt(value: anytype) c_int {
     return switch (@typeInfo(@TypeOf(value))) {
-        .@"enum" => @intFromEnum(value),
+        .@"enum" => @backingInt(value),
         else => @intCast(value),
     };
 }

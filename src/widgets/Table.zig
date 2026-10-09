@@ -142,8 +142,8 @@ pub fn drawTable(
                 const al_fields = comptime meta.fieldNames(std.ArrayList([]const u8));
                 const mal_fields = comptime meta.fieldNames(std.MultiArrayList(struct { a: u8 = 0, b: u32 = 0 }));
                 // Probably an ArrayList
-                const is_al = comptime if (mem.indexOf(u8, @typeName(DataListT), "MultiArrayList") == null and
-                    mem.indexOf(u8, @typeName(DataListT), "ArrayList") != null and
+                const is_al = comptime if (mem.find(u8, @typeName(DataListT), "MultiArrayList") == null and
+                    mem.find(u8, @typeName(DataListT), "ArrayList") != null and
                     al_fields.len == di_fields.len)
                 isAL: {
                     var is = true;
@@ -154,7 +154,7 @@ pub fn drawTable(
                 if (is_al) break :getData data_list.items;
 
                 // Probably a MultiArrayList
-                const is_mal = if (mem.indexOf(u8, @typeName(DataListT), "MultiArrayList") != null and
+                const is_mal = if (mem.find(u8, @typeName(DataListT), "MultiArrayList") != null and
                     mal_fields.len == di_fields.len)
                 isMAL: {
                     var is = true;
@@ -247,7 +247,7 @@ pub fn drawTable(
         };
         hdr_win.fill(.{ .style = .{ .bg = hdr_bg } });
         var seg = [_]vaxis.Cell.Segment{.{
-            .text = if (hdr_txt.len > col_width and alloc != null) try fmt.allocPrint(alloc.?, "{s}...", .{hdr_txt[0..(col_width -| 4)]}) else hdr_txt,
+            .text = if (hdr_txt.len > col_width and alloc != null) try alloc.?.print("{s}...", .{hdr_txt[0..(col_width -| 4)]}) else hdr_txt,
             .style = .{
                 .fg = hdr_fg,
                 .bg = hdr_bg,
@@ -288,7 +288,7 @@ pub fn drawTable(
             if (table_ctx.active and table_ctx.start + row == table_ctx.row)
                 break :rowColors .{ table_ctx.active_fg, table_ctx.active_bg };
             if (table_ctx.sel_rows) |rows| {
-                if (mem.indexOfScalar(u16, rows, @intCast(table_ctx.start + row)) != null)
+                if (mem.findScalar(u16, rows, @intCast(table_ctx.start + row)) != null)
                     break :rowColors .{ table_ctx.selected_fg, table_ctx.selected_bg };
             }
             if (row % 2 == 0) break :rowColors .{ .default, table_ctx.row_bg_1 };
@@ -335,7 +335,7 @@ pub fn drawTable(
                 const item_txt = switch (ItemT) {
                     []const u8 => item,
                     [][]const u8, []const []const u8 => strSlice: {
-                        if (alloc) |_alloc| break :strSlice try fmt.allocPrint(_alloc, "{s}", .{item});
+                        if (alloc) |_alloc| break :strSlice try _alloc.print("{s}", .{item});
                         break :strSlice item;
                     },
                     else => nonStr: {
@@ -346,7 +346,7 @@ pub fn drawTable(
                                 switch (@typeInfo(ItemT).optional.child) {
                                     []const u8 => break :nonStr opt_item,
                                     [][]const u8, []const []const u8 => {
-                                        break :nonStr if (alloc) |_alloc| try fmt.allocPrint(_alloc, "{s}", .{opt_item}) else fmt.comptimePrint("[unsupported ({s})]", .{@typeName(DataT)});
+                                        break :nonStr if (alloc) |_alloc| try _alloc.print("{s}", .{opt_item}) else fmt.comptimePrint("[unsupported ({s})]", .{@typeName(DataT)});
                                     },
                                     else => {
                                         break :nonStr try formatCellValue(alloc, opt_item, DataT);
@@ -375,7 +375,7 @@ pub fn drawTable(
                     };
                 };
                 var seg = [_]vaxis.Cell.Segment{.{
-                    .text = if (item_txt.len > col_width and alloc != null) try fmt.allocPrint(alloc.?, "{s}...", .{item_txt[0..(col_width -| 4)]}) else item_txt,
+                    .text = if (item_txt.len > col_width and alloc != null) try alloc.?.print("{s}...", .{item_txt[0..(col_width -| 4)]}) else item_txt,
                     .style = .{ .fg = row_fg, .bg = row_bg },
                 }};
                 _ = item_align_win.print(seg[0..], .{ .wrap = .word, .col_offset = table_ctx.cell_x_off });
@@ -391,9 +391,9 @@ fn formatCellValue(
 ) ![]const u8 {
     if (alloc) |_alloc| {
         if (comptime std.meta.hasFn(@TypeOf(item), "format")) {
-            return try fmt.allocPrint(_alloc, "{f}", .{item});
+            return try _alloc.print("{f}", .{item});
         }
-        return try fmt.allocPrint(_alloc, "{any}", .{item});
+        return try _alloc.print("{any}", .{item});
     }
     return fmt.comptimePrint("[unsupported ({s})]", .{@typeName(DataT)});
 }

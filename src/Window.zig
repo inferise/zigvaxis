@@ -808,7 +808,7 @@ const LineIterator = struct {
         if (self.index >= self.buf.len) return null;
 
         const start = self.index;
-        const end = std.mem.indexOfAnyPos(u8, self.buf, self.index, "\r\n") orelse {
+        const end = std.mem.findAnyPos(u8, self.buf, self.index, "\r\n") orelse {
             if (start == 0) self.has_break = false;
             self.index = self.buf.len;
             return self.buf[start..];
