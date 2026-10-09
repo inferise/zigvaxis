@@ -8,7 +8,7 @@ const cli = @import("module.zig");
 /// The demo owns the terminal, so anything written to stderr corrupts the
 /// display. Keep logging off unless a debug build asks for it.
 pub const std_options: std.Options = .{
-    .log_level = if (builtin.mode == .Debug) .debug else .err,
+    .log_level = if (builtin.mode == .debug) .debug else .err,
 };
 
 /// Restores the terminal before the default panic handler runs, so a crash

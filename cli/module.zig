@@ -9,7 +9,7 @@ pub const DemoApp = @import("demo_app.zig").DemoApp;
 pub const Gallery = @import("gallery.zig").Gallery;
 
 /// True in Debug builds. Demos use it to show build-mode-dependent detail.
-pub const is_debug = @import("builtin").mode == .Debug;
+pub const is_debug = @import("builtin").mode == .debug;
 
 // -----------------------------------------------------------------------------
 // Unit Tests

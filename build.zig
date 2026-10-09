@@ -67,8 +67,13 @@ pub fn build(b: *std.Build) void {
             .{ .name = "build_options", .module = c_api_options.createModule() },
         },
     });
-    // For the @cImport-based layout test in src/c_api.zig
-    c_api_mod.addIncludePath(b.path("include"));
+    // For the header conformance test in src/c_api.zig
+    const vaxis_h = b.addTranslateC(.{
+        .root_source_file = b.path("include/vaxis.h"),
+        .target = target,
+        .optimize = optimize,
+    });
+    c_api_mod.addImport("vaxis_h", vaxis_h.createModule());
 
     // Compile the C API once as PIC, then use the resulting object for both
     // library formats. Building two libraries directly from c_api_mod would
@@ -143,8 +148,8 @@ pub fn build(b: *std.Build) void {
         vt,
     };
     var examples: std.EnumMap(Example, *std.Build.Module) = .init(.{});
-    inline for (std.meta.fields(Example)) |field| {
-        const example: Example = @enumFromInt(field.value);
+    inline for (@typeInfo(Example).@"enum".field_names) |name| {
+        const example = @field(Example, name);
         examples.put(
             example,
             b.createModule(.{
@@ -187,9 +192,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
     const bench_run = b.addRunArtifact(bench);
-    if (b.args) |args| {
-        bench_run.addArgs(args);
-    }
+    bench_run.addPassthruArgs();
     bench_step.dependOn(&bench_run.step);
 
     // Demo CLI: a gallery of every vxfw widget, in cli/.

@@ -2,16 +2,16 @@
     .name = .zigvaxis,
     .description = "Inferise Zig Vaxis TUI Module",
     .fingerprint = 0x81b4286c3eb26da9,
-    .version = "1.0.1",
-    .minimum_zig_version = "0.16.0",
+    .version = "2.0.0",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .zigimg = .{
-            .url = "git+https://github.com/zigimg/zigimg#d695acd97c02e57bb151e8f659d1280f5cd6ca70",
-            .hash = "zigimg-0.1.0-8_eo2oyaFwBZwJpmqPkCfVXWBrHcqbYwmrp1I6bTD3lI",
+            .url = "git+https://github.com/zigimg/zigimg#734fa919fb15b7917d4eb124f53600348f4ffa30",
+            .hash = "zigimg-0.1.0-8_eo2sBLGACBebrhQZUwRliZNSUyDn6szp99eip_6-Rw",
         },
         .uucode = .{
-            .url = "git+https://github.com/jacobsandlund/uucode#2826a37a4562284fdacd8fa029d49509cc9bffcd",
-            .hash = "uucode-0.2.0-ZZjBPlK5VADj7fdoq7G8LIHzD5o6FSkcBXXrRWr4jnrA",
+            .url = "git+https://github.com/jacobsandlund/uucode#1fb73433bba5d93366c57f23ff2e9d7939746500",
+            .hash = "uucode-0.2.0-ZZjBPm6FVgBcY-79AHV8ckQj86z0JwOyVyj89VeZrEiv",
             .lazy = true,
         },
     },

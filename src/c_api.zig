@@ -87,10 +87,10 @@ comptime {
     // Export every public function as vaxis_<name>, but only when building
     // the C library, not when imported as a Zig module.
     if (@import("root") == @This()) {
-        for (@typeInfo(@This()).@"struct".decls) |decl| {
-            const field = @field(@This(), decl.name);
+        for (@typeInfo(@This()).@"struct".decl_names) |decl_name| {
+            const field = @field(@This(), decl_name);
             if (@typeInfo(@TypeOf(field)) == .@"fn") {
-                @export(&field, .{ .name = "vaxis_" ++ decl.name });
+                @export(&field, .{ .name = "vaxis_" ++ decl_name });
             }
         }
     }
@@ -136,14 +136,14 @@ pub const EventType = enum(c_int) {
 
 comptime {
     // EventType and vaxis.Event must stay in sync in both directions
-    for (@typeInfo(vaxis.Event).@"union".fields) |field| {
-        if (!@hasField(EventType, field.name))
-            @compileError("vaxis.Event variant missing from EventType: " ++ field.name);
+    for (@typeInfo(vaxis.Event).@"union".field_names) |field_name| {
+        if (!@hasField(EventType, field_name))
+            @compileError("vaxis.Event variant missing from EventType: " ++ field_name);
     }
-    for (@typeInfo(EventType).@"enum".fields) |field| {
-        if (std.mem.eql(u8, field.name, "none")) continue;
-        if (!@hasField(vaxis.Event, field.name))
-            @compileError("EventType tag is not a vaxis.Event variant: " ++ field.name);
+    for (@typeInfo(EventType).@"enum".field_names) |field_name| {
+        if (std.mem.eql(u8, field_name, "none")) continue;
+        if (!@hasField(vaxis.Event, field_name))
+            @compileError("EventType tag is not a vaxis.Event variant: " ++ field_name);
     }
 }
 
@@ -1353,7 +1353,7 @@ fn asInt(value: anytype) c_int {
 
 test "c api: conformance with vaxis.h" {
     @setEvalBranchQuota(100_000);
-    const c = @cImport(@cInclude("vaxis.h"));
+    const c = @import("vaxis_h");
 
     // the only transparent structs in the ABI
     try testing.expectEqual(@sizeOf(c.vaxis_string), @sizeOf(CString));
@@ -1379,69 +1379,69 @@ test "c api: conformance with vaxis.h" {
     }
 
     // every event type has a matching VAXIS_EVENT_* value
-    inline for (@typeInfo(EventType).@"enum".fields) |field| {
+    inline for (@typeInfo(EventType).@"enum".field_names, @typeInfo(EventType).@"enum".field_values) |field_name, field_value| {
         try testing.expectEqual(
-            asInt(@field(c, "VAXIS_EVENT_" ++ comptimeUpper(field.name))),
-            field.value,
+            asInt(@field(c, "VAXIS_EVENT_" ++ comptimeUpper(field_name))),
+            field_value,
         );
     }
 
     // result codes: ok is VAXIS_OK, errors are VAXIS_ERR_*
-    inline for (@typeInfo(Result).@"enum".fields) |field| {
-        const c_name = comptime if (std.mem.eql(u8, field.name, "ok"))
+    inline for (@typeInfo(Result).@"enum".field_names, @typeInfo(Result).@"enum".field_values) |field_name, field_value| {
+        const c_name = comptime if (std.mem.eql(u8, field_name, "ok"))
             "VAXIS_OK"
         else
-            "VAXIS_" ++ comptimeUpper(field.name);
-        try testing.expectEqual(asInt(@field(c, c_name)), field.value);
+            "VAXIS_" ++ comptimeUpper(field_name);
+        try testing.expectEqual(asInt(@field(c, c_name)), field_value);
     }
 
     // every u21 key constant has a matching VAXIS_KEY_* define
-    inline for (@typeInfo(Key).@"struct".decls) |decl| {
-        if (@TypeOf(@field(Key, decl.name)) == u21) {
+    inline for (@typeInfo(Key).@"struct".decl_names) |decl_name| {
+        if (@TypeOf(@field(Key, decl_name)) == u21) {
             try testing.expectEqual(
-                asInt(@field(c, "VAXIS_KEY_" ++ comptimeUpper(decl.name))),
-                @field(Key, decl.name),
+                asInt(@field(c, "VAXIS_KEY_" ++ comptimeUpper(decl_name))),
+                @field(Key, decl_name),
             );
         }
     }
 
     // modifier bits are the packed struct bit positions
-    inline for (@typeInfo(Key.Modifiers).@"struct".fields, 0..) |field, i| {
+    inline for (@typeInfo(Key.Modifiers).@"struct".field_names, 0..) |field_name, i| {
         try testing.expectEqual(
-            asInt(@field(c, "VAXIS_MOD_" ++ comptimeUpper(field.name))),
+            asInt(@field(c, "VAXIS_MOD_" ++ comptimeUpper(field_name))),
             @as(u8, 1) << i,
         );
     }
-    inline for (@typeInfo(Mouse.Modifiers).@"struct".fields, 0..) |field, i| {
+    inline for (@typeInfo(Mouse.Modifiers).@"struct".field_names, 0..) |field_name, i| {
         try testing.expectEqual(
-            asInt(@field(c, "VAXIS_MOUSE_MOD_" ++ comptimeUpper(field.name))),
+            asInt(@field(c, "VAXIS_MOUSE_MOD_" ++ comptimeUpper(field_name))),
             @as(u8, 1) << i,
         );
     }
 
     // mouse buttons, mouse event types, color kinds, and color schemes
-    inline for (@typeInfo(Mouse.Button).@"enum".fields) |field| {
+    inline for (@typeInfo(Mouse.Button).@"enum".field_names, @typeInfo(Mouse.Button).@"enum".field_values) |field_name, field_value| {
         try testing.expectEqual(
-            asInt(@field(c, "VAXIS_MOUSE_" ++ comptimeUpper(field.name))),
-            field.value,
+            asInt(@field(c, "VAXIS_MOUSE_" ++ comptimeUpper(field_name))),
+            field_value,
         );
     }
-    inline for (@typeInfo(Mouse.Type).@"enum".fields) |field| {
+    inline for (@typeInfo(Mouse.Type).@"enum".field_names, @typeInfo(Mouse.Type).@"enum".field_values) |field_name, field_value| {
         try testing.expectEqual(
-            asInt(@field(c, "VAXIS_MOUSE_" ++ comptimeUpper(field.name))),
-            field.value,
+            asInt(@field(c, "VAXIS_MOUSE_" ++ comptimeUpper(field_name))),
+            field_value,
         );
     }
-    inline for (@typeInfo(std.meta.Tag(Color.Kind)).@"enum".fields) |field| {
+    inline for (@typeInfo(std.meta.Tag(Color.Kind)).@"enum".field_names, @typeInfo(std.meta.Tag(Color.Kind)).@"enum".field_values) |field_name, field_value| {
         try testing.expectEqual(
-            asInt(@field(c, "VAXIS_COLOR_" ++ comptimeUpper(field.name))),
-            field.value,
+            asInt(@field(c, "VAXIS_COLOR_" ++ comptimeUpper(field_name))),
+            field_value,
         );
     }
-    inline for (@typeInfo(Color.Scheme).@"enum".fields) |field| {
+    inline for (@typeInfo(Color.Scheme).@"enum".field_names, @typeInfo(Color.Scheme).@"enum".field_values) |field_name, field_value| {
         try testing.expectEqual(
-            asInt(@field(c, "VAXIS_COLOR_SCHEME_" ++ comptimeUpper(field.name))),
-            field.value,
+            asInt(@field(c, "VAXIS_COLOR_SCHEME_" ++ comptimeUpper(field_name))),
+            field_value,
         );
     }
 }
@@ -1658,7 +1658,13 @@ test "c api: oversized grapheme text is truncated at a utf8 boundary" {
     defer parser_free(parser);
 
     // one grapheme cluster larger than the 256 byte text buffer
-    const input = ("\xE2\x98\xBA\xE2\x80\x8D" ** 60) ++ "\xE2\x98\xBA";
+    const input = comptime blk: {
+        const unit = "\xE2\x98\xBA\xE2\x80\x8D";
+        var buf: [unit.len * 60]u8 = undefined;
+        for (0..60) |i| @memcpy(buf[i * unit.len ..][0..unit.len], unit);
+        const final = buf ++ "\xE2\x98\xBA";
+        break :blk final;
+    };
     var event: ?*const CEvent = null;
     var n: usize = 0;
     try testing.expectEqual(.ok, parseBytes(parser, input, &event, &n));
