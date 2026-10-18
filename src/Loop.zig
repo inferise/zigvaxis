@@ -84,6 +84,8 @@ pub fn Loop(comptime T: type) type {
             // trigger a read
             self.vaxis.deviceStatusReport(self.tty.writer()) catch |err|
                 log.warn("could not wake the read thread to stop it: {t}", .{err});
+            // Windows consoles may not answer the report on stdin.
+            if (builtin.os.tag == .windows and !builtin.is_test) self.tty.wake();
 
             if (self.thread) |*thread| {
                 thread.await(self.io);

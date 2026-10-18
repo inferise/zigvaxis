@@ -380,8 +380,9 @@ pub const WindowsTty = struct {
             std.log.scoped(.vaxis).warn("could not restore console input mode: {t}", .{err});
         setConsoleMode(self.stdout, self.initial_output_mode) catch |err|
             std.log.scoped(.vaxis).warn("could not restore console output mode: {t}", .{err});
-        windows.CloseHandle(self.stdin);
-        windows.CloseHandle(self.stdout);
+        // The handles are the process's own standard handles (from
+        // `std.Io.File.stdin()`/`.stdout()`), not opened here: closing them
+        // breaks every later write to stdout, and any child spawned after.
     }
 
     pub const CONSOLE_MODE_INPUT = packed struct(u32) {
@@ -429,6 +430,20 @@ pub const WindowsTty = struct {
 
     pub fn read(self: *const WindowsTty, buf: []u8) !usize {
         return posix.read(self.fd, buf);
+    }
+
+    /// Wakes a thread blocked in `nextEvent` with a window-size record, which
+    /// `nextEvent` returns as a `winsize` event. `Loop.stop` needs it: the
+    /// device status report it writes is answered on stdin only by some
+    /// consoles, and `ReadConsoleInputW` otherwise waits for the next key.
+    pub fn wake(self: *const WindowsTty) void {
+        var record: INPUT_RECORD = .{
+            .EventType = 0x0004, // WINDOW_BUFFER_SIZE_EVENT
+            .Event = .{ .WindowBufferSizeEvent = .{ .dwSize = .{ .X = 0, .Y = 0 } } },
+        };
+        var written: windows.DWORD = 0;
+        if (WriteConsoleInputW(self.stdin, &record, 1, &written) == .FALSE)
+            std.log.scoped(.vaxis).warn("could not wake the read thread: {t}", .{windows.GetLastError()});
     }
 
     pub fn nextEvent(self: *WindowsTty, parser: *Parser, paste_allocator: ?std.mem.Allocator) !Event {
@@ -861,6 +876,7 @@ pub const WindowsTty = struct {
     pub const PINPUT_RECORD = *INPUT_RECORD;
 
     pub extern "kernel32" fn ReadConsoleInputW(hConsoleInput: windows.HANDLE, lpBuffer: PINPUT_RECORD, nLength: windows.DWORD, lpNumberOfEventsRead: *windows.DWORD) callconv(.winapi) windows.BOOL;
+    pub extern "kernel32" fn WriteConsoleInputW(hConsoleInput: windows.HANDLE, lpBuffer: *const INPUT_RECORD, nLength: windows.DWORD, lpNumberOfEventsWritten: *windows.DWORD) callconv(.winapi) windows.BOOL;
     pub extern "kernel32" fn GetConsoleOutputCP() callconv(.winapi) windows.UINT;
     pub extern "kernel32" fn GetConsoleMode(kConsoleHandle: windows.HANDLE, lpMode: *windows.DWORD) callconv(.winapi) windows.BOOL;
     pub extern "kernel32" fn SetConsoleMode(hConsoleHandle: windows.HANDLE, dwMode: windows.DWORD) callconv(.winapi) windows.BOOL;
