@@ -48,11 +48,12 @@ pub const InputEvent = union(enum) {
     key_press: vaxis.Key,
 };
 
-pub var global_io: std.Io = undefined;
-pub var global_io_initialized: bool = false;
-pub var global_vt_mutex: std.Io.Mutex = .init;
-pub var global_vts: std.AutoHashMapUnmanaged(i32, *Terminal) = .empty;
-pub var global_sigchild_installed: bool = false;
+/// How often the reader checks whether the child it saw close the pty has
+/// exited, and `deinit` whether the child it stopped has.
+const reap_poll_ms = 10;
+/// How long `deinit` waits for the child to exit after SIGTERM and the pty's
+/// hangup before leaving it unreaped.
+const reap_grace_ms = 200;
 
 io: std.Io,
 allocator: std.mem.Allocator,
@@ -77,7 +78,8 @@ back_mutex: std.Io.Mutex = .init,
 // dirty is protected by back_mutex. Only access this field when you hold that mutex
 dirty: bool = false,
 
-should_quit: bool = false,
+/// Set by `deinit` (the owner's thread), read by the reader thread.
+should_quit: std.atomic.Value(bool) = .init(false),
 
 mode: Mode = .{},
 
@@ -93,10 +95,6 @@ event_text: ?[]u8 = null,
 /// initialize a Terminal. This sets the size of the underlying pty and allocates the sizes of the
 /// screen
 pub fn init(io: std.Io, allocator: std.mem.Allocator, argv: []const []const u8, env: *const std.process.Environ.Map, opts: Options, write_buf: []u8) !Terminal {
-    if (!global_io_initialized) {
-        global_io = io;
-        global_io_initialized = true;
-    }
     // Verify we have an absolute path
     if (opts.initial_working_directory) |pwd| {
         if (!std.Io.Dir.path.isAbsolute(pwd)) return error.InvalidWorkingDirectory;
@@ -139,17 +137,7 @@ pub fn init(io: std.Io, allocator: std.mem.Allocator, argv: []const []const u8, 
 
 /// release all resources of the Terminal
 pub fn deinit(self: *Terminal) void {
-    self.should_quit = true;
-
-    pid: {
-        global_vt_mutex.lock(self.io) catch break :pid;
-        defer global_vt_mutex.unlock(self.io);
-        if (self.cmd.pid) |pid|
-            _ = global_vts.remove(pid);
-        if (global_vts.count() == 0) {
-            global_vts.deinit(self.allocator);
-        }
-    }
+    self.should_quit.store(true, .release);
     self.cmd.kill();
     if (self.thread) |*thread| {
         // write an EOT into the tty to trigger a read on our thread
@@ -163,7 +151,9 @@ pub fn deinit(self: *Terminal) void {
     while (self.event_queue.tryPop() catch null) |event| {
         self.freeQueuedEvent(event);
     }
+    // Closing the pty hangs the child up, if SIGTERM didn't end it.
     self.pty.deinit(self.io);
+    self.awaitChild();
     self.front_screen.deinit(self.allocator);
     self.back_screen_pri.deinit(self.allocator);
     self.back_screen_alt.deinit(self.allocator);
@@ -186,14 +176,6 @@ pub fn spawn(self: *Terminal) !void {
         const out_path = try pwd.realPathFileAlloc(self.io, ".", self.allocator);
         defer self.allocator.free(out_path);
         try self.working_directory.appendSlice(self.allocator, out_path);
-    }
-
-    {
-        // add to our global list
-        try global_vt_mutex.lock(self.io);
-        defer global_vt_mutex.unlock(self.io);
-        if (self.cmd.pid) |pid|
-            try global_vts.put(self.allocator, pid, self);
     }
 
     self.thread = try self.io.concurrent(Terminal.run, .{self});
@@ -302,10 +284,49 @@ fn reader(self: *const Terminal, buf: []u8) std.Io.File.Reader {
     return self.pty.pty.readerStreaming(self.io, buf);
 }
 
-/// process the output from the command on the pty
+/// process the output from the command on the pty, then report the child's exit
 fn run(self: *Terminal) void {
+    // A read fails once the child has closed the pty (end of file on macOS,
+    // EIO on Linux): the usual way a session ends.
     self.runFallible() catch |err|
-        log.err("pty read loop exited: {t}", .{err});
+        log.debug("pty read loop ended: {t}", .{err});
+    if (self.should_quit.load(.acquire)) return;
+
+    // Reaped here, not in a SIGCHLD handler. A child that closed the pty but
+    // lives on is waited for until `deinit`, which then reaps it itself.
+    while (!self.cmd.reap()) {
+        if (self.should_quit.load(.acquire)) return;
+        self.io.sleep(.fromMilliseconds(reap_poll_ms), .awake) catch return;
+    }
+    // Not `push`: `deinit` waits for this thread and drains nothing.
+    while (!(self.event_queue.tryPush(.exited) catch true)) {
+        if (self.should_quit.load(.acquire)) return;
+        self.io.sleep(.fromMilliseconds(reap_poll_ms), .awake) catch return;
+    }
+}
+
+/// Reap the child after `deinit` stopped it, waiting up to `reap_grace_ms`.
+/// One that ignores both SIGTERM and the hangup is left a zombie.
+fn awaitChild(self: *Terminal) void {
+    var waited: u32 = 0;
+    while (!self.cmd.reap()) : (waited += reap_poll_ms) {
+        if (waited >= reap_grace_ms) {
+            log.debug("child {?d} still running; left unreaped", .{self.cmd.pid});
+            return;
+        }
+        self.io.sleep(.fromMilliseconds(reap_poll_ms), .awake) catch return;
+    }
+}
+
+/// Queue an event the reader produces while it holds `back_mutex`. Never
+/// blocks: with a full queue, a blocked reader would hold the lock, and an
+/// owner waiting on that lock to draw would never drain the queue. A dropped
+/// bell or title change is harmless (the title is still in `title`).
+fn queueEvent(self: *Terminal, event: QueuedEvent) void {
+    const queued = self.event_queue.tryPush(event) catch false;
+    if (queued) return;
+    log.debug("event queue full; dropped {t}", .{event});
+    self.freeQueuedEvent(event);
 }
 
 fn runFallible(self: *Terminal) !void {
@@ -317,7 +338,7 @@ fn runFallible(self: *Terminal) !void {
     var reader_buf: [4096]u8 = undefined;
     var reader_ = self.reader(&reader_buf);
 
-    while (!self.should_quit) {
+    while (!self.should_quit.load(.acquire)) {
         const event = try parser.parseReader(&reader_.interface);
         try self.back_mutex.lock(self.io);
         defer self.back_mutex.unlock(self.io);
@@ -731,13 +752,11 @@ fn runFallible(self: *Terminal) !void {
                     0 => {
                         self.title.clearRetainingCapacity();
                         try self.title.appendSlice(self.allocator, osc[semicolon + 1 ..]);
-                        const text = try self.allocator.dupe(u8, self.title.items);
-                        errdefer self.allocator.free(text);
-                        try self.event_queue.push(.{ .title_change = text });
+                        self.queueEvent(.{ .title_change = try self.allocator.dupe(u8, self.title.items) });
                     },
                     7 => {
                         // OSC 7 ; file:// <hostname> <pwd>
-                        log.err("osc: {s}", .{osc});
+                        log.debug("osc: {s}", .{osc});
                         self.working_directory.clearRetainingCapacity();
                         const scheme = "file://";
                         const start = std.mem.findScalarPos(u8, osc, semicolon + 2 + scheme.len + 1, '/') orelse {
@@ -753,9 +772,7 @@ fn runFallible(self: *Terminal) !void {
                             } else enc[i];
                             try self.working_directory.append(self.allocator, b);
                         }
-                        const text = try self.allocator.dupe(u8, self.working_directory.items);
-                        errdefer self.allocator.free(text);
-                        try self.event_queue.push(.{ .pwd_change = text });
+                        self.queueEvent(.{ .pwd_change = try self.allocator.dupe(u8, self.working_directory.items) });
                     },
                     else => log.info("unhandled osc: {s}", .{osc}),
                 }
@@ -770,7 +787,7 @@ inline fn handleC0(self: *Terminal, b: ansi.C0) !void {
         .NUL, .SOH, .STX => {},
         .EOT => {}, // we send EOT to quit the read thread
         .ENQ => {},
-        .BEL => try self.event_queue.push(.bell),
+        .BEL => self.queueEvent(.bell),
         .BS => self.back_screen.cursorLeft(1),
         .HT => self.horizontalTab(1),
         .LF, .VT, .FF => try self.back_screen.index(),

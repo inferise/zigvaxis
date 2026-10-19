@@ -3,7 +3,6 @@ const Command = @This();
 const std = @import("std");
 const builtin = @import("builtin");
 const Pty = @import("Pty.zig");
-const Terminal = @import("Terminal.zig");
 
 const log = std.log.scoped(.terminal);
 
@@ -32,8 +31,10 @@ const sys = switch (builtin.os.tag) {
         fn exit(code: u8) noreturn {
             linux.exit(code);
         }
-        fn waitpidAny(status: *u32) isize {
-            const rc = linux.waitpid(-1, @ptrCast(status), 0);
+        /// `waitpid(pid, WNOHANG)`: the pid once reaped, 0 while it runs, -1 when there is none.
+        fn waitpidNoHang(pid: posix.pid_t) isize {
+            var status: i32 = undefined;
+            const rc = linux.waitpid(pid, &status, linux.W.NOHANG);
             return switch (linux.errno(rc)) {
                 .SUCCESS => @bitCast(rc),
                 else => -1,
@@ -56,12 +57,10 @@ const sys = switch (builtin.os.tag) {
         fn exit(code: u8) noreturn {
             std.c._exit(code);
         }
-        fn waitpidAny(status: *u32) isize {
+        /// `waitpid(pid, WNOHANG)`: the pid once reaped, 0 while it runs, -1 when there is none.
+        fn waitpidNoHang(pid: posix.pid_t) isize {
             var raw: c_int = undefined;
-            const pid = std.c.waitpid(-1, &raw, 0);
-            if (pid < 0) return -1;
-            status.* = @bitCast(raw);
-            return pid;
+            return std.c.waitpid(pid, &raw, std.c.W.NOHANG);
         }
     },
     else => @compileError("os not supported"),
@@ -123,47 +122,30 @@ pub fn spawn(self: *Command, io: std.Io, allocator: std.mem.Allocator) !void {
         sys.exit(127);
     }
 
-    // we are the parent
+    // we are the parent. No SIGCHLD handler: the terminal's reader thread
+    // notices the child closing the pty and reaps this pid (`reap`), so other
+    // children of the process (a clipboard helper, `std.process.Child`s) keep
+    // their exit statuses.
     self.pid = @intCast(pid);
-
-    if (!Terminal.global_sigchild_installed) {
-        Terminal.global_sigchild_installed = true;
-        var act = posix.Sigaction{
-            .handler = .{ .handler = handleSigChild },
-            .mask = switch (builtin.os.tag) {
-                .macos => 0,
-                .linux => posix.sigemptyset(),
-                else => @compileError("os not supported"),
-            },
-            .flags = 0,
-        };
-        posix.sigaction(posix.SIG.CHLD, &act, null);
-    }
-
-    return;
 }
 
-fn handleSigChild(_: posix.SIG) callconv(.c) void {
-    var status: u32 = undefined;
-    const rc = sys.waitpidAny(&status);
-    if (rc < 0) return;
-    const pid: i32 = @intCast(rc);
-
-    Terminal.global_vt_mutex.lock(Terminal.global_io) catch return;
-    defer Terminal.global_vt_mutex.unlock(Terminal.global_io);
-    var vt = Terminal.global_vts.get(pid) orelse return;
-    // Signal-handler context, where std.log is not async-signal-safe. A full queue
-    // means the consumer is already behind and will see the exit on its next read.
-    vt.event_queue.push(.exited) catch |err|
-        log.err("could not queue child exit for pid {d}: {t}", .{ pid, err });
-}
-
+/// Send the child SIGTERM. It stays to be reaped.
 pub fn kill(self: *Command) void {
     if (self.pid) |pid| {
         posix.kill(pid, posix.SIG.TERM) catch |err|
             log.debug("could not signal child {d}: {t}", .{ pid, err });
-        self.pid = null;
     }
+}
+
+/// Collect the child's exit status if it has exited, so it leaves no zombie.
+/// Waits only for this child, never `waitpid(-1)`.
+///
+/// Return: true once there is no child left to wait for.
+pub fn reap(self: *Command) bool {
+    const pid = self.pid orelse return true;
+    if (sys.waitpidNoHang(pid) == 0) return false;
+    self.pid = null;
+    return true;
 }
 
 // Keep fork->exec child path allocation-free, following std/Io/Threaded.zig:posixExec

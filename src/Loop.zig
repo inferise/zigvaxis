@@ -16,13 +16,23 @@ pub fn Loop(comptime T: type) type {
 
         const Event = T;
 
+        /// How long `stop` waits for the terminal to answer the report that
+        /// wakes the read thread, before cancelling the read.
+        const stop_grace_ms: u32 = 1000;
+        /// How often `stop` checks within that wait.
+        const stop_poll_ms: u32 = 10;
+
         io: std.Io,
         tty: *Tty,
         vaxis: *Vaxis,
 
         queue: Queue(T, 512),
         thread: ?std.Io.Future(void) = null,
-        should_quit: bool = false,
+        /// Set by `stop`, read by the read thread.
+        should_quit: std.atomic.Value(bool) = .init(false),
+        /// Set by the read thread as it exits, so `stop` can tell whether the
+        /// terminal answered the report that wakes it.
+        read_done: std.atomic.Value(bool) = .init(false),
         resize_handler_installed: bool = false,
 
         /// Initialize the event loop. This is an intrusive init so that we have
@@ -80,7 +90,7 @@ pub fn Loop(comptime T: type) type {
         pub fn stop(self: *Self) void {
             // If we don't have a thread, we have nothing to stop
             if (self.thread == null) return;
-            self.should_quit = true;
+            self.should_quit.store(true, .release);
             // trigger a read
             self.vaxis.deviceStatusReport(self.tty.writer()) catch |err|
                 log.warn("could not wake the read thread to stop it: {t}", .{err});
@@ -88,9 +98,36 @@ pub fn Loop(comptime T: type) type {
             if (builtin.os.tag == .windows and !builtin.is_test) self.tty.wake();
 
             if (self.thread) |*thread| {
-                thread.await(self.io);
+                // A terminal answers the report at once, which ends the read. One
+                // that never does (a bare pty, such as `script` reading a pipe)
+                // would leave the read blocked forever, so after a grace period
+                // the read is cancelled. Not at once: the answer would then land
+                // in the shell after the program exits.
+                if (builtin.os.tag == .windows) {
+                    thread.await(self.io);
+                } else {
+                    self.awaitReadDone();
+                    if (self.read_done.load(.acquire)) thread.await(self.io) else thread.cancel(self.io);
+                }
                 self.thread = null;
-                self.should_quit = false;
+                self.should_quit.store(false, .release);
+                self.read_done.store(false, .release);
+            }
+        }
+
+        /// Waits up to `stop_grace_ms` for the read thread to exit on its own.
+        fn awaitReadDone(self: *Self) void {
+            var waited: u32 = 0;
+            while (!self.read_done.load(.acquire) and waited < stop_grace_ms) : (waited += stop_poll_ms) {
+                self.io.sleep(.fromMilliseconds(stop_poll_ms), .awake) catch |err| switch (err) {
+                    error.Canceled => {
+                        // `stop` can't return the error: re-arm it for the
+                        // caller's next cancellation point, and stop waiting.
+                        log.debug("stop's wait for the read thread was cancelled", .{});
+                        self.io.recancel();
+                        return;
+                    },
+                };
             }
         }
 
@@ -160,8 +197,12 @@ pub fn Loop(comptime T: type) type {
 
         /// read input from the tty. This is run in a separate thread
         fn ttyRun(self: *Self, paste_allocator: ?std.mem.Allocator) void {
-            self.ttyRunFallible(paste_allocator) catch |err|
-                log.err("tty read loop exited: {t}", .{err});
+            defer self.read_done.store(true, .release);
+            self.ttyRunFallible(paste_allocator) catch |err| switch (err) {
+                // `stop` cancels a read the terminal never woke.
+                error.Canceled => log.debug("tty read loop cancelled", .{}),
+                else => log.err("tty read loop exited: {t}", .{err}),
+            };
         }
 
         fn ttyRunFallible(self: *Self, paste_allocator: ?std.mem.Allocator) TtyRunError!void {
@@ -174,7 +215,7 @@ pub fn Loop(comptime T: type) type {
 
             switch (builtin.os.tag) {
                 .windows => {
-                    while (!self.should_quit) {
+                    while (!self.should_quit.load(.acquire)) {
                         const event = try self.tty.nextEvent(&parser, paste_allocator);
                         try handleEventGeneric(self, self.vaxis, &cache, Event, event, null);
                     }
@@ -190,7 +231,7 @@ pub fn Loop(comptime T: type) type {
                     var buf: [1024]u8 = undefined;
                     var read_start: usize = 0;
                     // read loop
-                    read_loop: while (!self.should_quit) {
+                    read_loop: while (!self.should_quit.load(.acquire)) {
                         const bytes_read = try self.tty.read(buf[read_start..]);
                         const n = read_start + bytes_read;
                         var seq_start: usize = 0;
@@ -390,7 +431,12 @@ pub fn handleEventGeneric(self: anytype, vx: *Vaxis, cache: *GraphemeCache, Even
                 },
                 .paste => |text| {
                     if (@hasField(Event, "paste")) {
-                        return self.postEvent(.{ .paste = text });
+                        // A post that fails (cancelled while the queue is
+                        // full) still owns the text.
+                        return self.postEvent(.{ .paste = text }) catch |err| {
+                            if (paste_allocator) |allocator| allocator.free(text);
+                            return err;
+                        };
                     } else {
                         if (paste_allocator) |_|
                             paste_allocator.?.free(text);

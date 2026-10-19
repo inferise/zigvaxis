@@ -104,6 +104,18 @@ When editing an existing file, match that file's surrounding style rather than c
   async-signal-safe. Keep new work out of the handler itself. Because the state is global, multiple TTYs in one
   compilation unit are not fully supported. On macOS the tty fd is deliberately never closed — closing
   `/dev/tty` can block indefinitely.
+- **`Loop.stop` (POSIX) wakes its read thread with a device-status report** and waits up to `stop_grace_ms`
+  (1 s) for the terminal's answer to end the read, then cancels the read. Not at once: a cancelled read
+  would leave the answer to land in the shell after exit. A pty with no terminal behind it (`script` fed
+  from a pipe) never answers, so its programs take that second to quit. Windows wakes its read with
+  `Tty.wake` instead.
+- **The embedded `Terminal` installs no SIGCHLD handler** (it used to: a mutex and a blocking queue push
+  in signal context, and `waitpid(-1)`, which stole other children's exit statuses, such as zigtui's
+  clipboard helper's). Its reader thread sees the child close the pty (EOF on macOS, EIO on Linux),
+  reaps exactly that pid (`Command.reap`, `WNOHANG` polled), then queues `.exited`; `deinit` reaps after
+  SIGTERM and the pty's hangup, waiting up to `reap_grace_ms`. Events the reader queues while holding
+  `back_mutex` (bell, title, pwd) use `tryPush` and are dropped when the queue is full, so an owner that
+  locks `back_mutex` to draw can't deadlock with it. `should_quit` is atomic.
 - **`-Dexternal_uucode=true`** makes `build()` return immediately after `addModule("vaxis")`; examples, bench,
   tests, docs, and the C library steps are all skipped by design. Do not "fix" that early return.
 - The C API is compiled once as a PIC object and reused for both static and shared libs — building each
