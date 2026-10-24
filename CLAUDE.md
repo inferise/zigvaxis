@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `vaxis` — a Zig TUI library (a fork of rockorager's libvaxis; README, docs URLs, and the mirror workflow still
 point upstream). Requires Zig **0.17.0** (`.minimum_zig_version` in `build.zig.zon`). This is a 0.17-era codebase
 built on the new `std.Io` API — `std.Io.File`, `std.Io.Writer`, `std.Io.Mutex`, `std.process.Init`. Pre-0.16
-idioms will not compile; see @styleguide/ZIGMIGRATE.md before reaching for an older API.
+idioms will not compile; see @../styleguide/ZIGMIGRATE.md before reaching for an older API.
 
 Targets Linux, macOS, and Windows. The C API surface is Linux-first — several entry points deliberately return
 `.err_unsupported` elsewhere.
@@ -18,36 +18,39 @@ Use the `Makefile`, not bare `zig build`:
 
 - `make build` — `zig build`
 - `make test` — `zig build test --summary all` (Zig unit tests, every example, C API tests, three linked C programs)
-- `make format` — `zig fmt` over the sources
-- `make lint` — `zlintpre` then `zlint -c styleguide` (config: `styleguide/zlint.json`; warnings are errors)
-  over `LINT_FILES`, which excludes `src/c_api.zig`
+- `make format` — `zig fmt` over `build.zig`, the sources under `ZIG_DIRS` (`src cli examples bench`), and
+  `build.zig.zon`
+- `make lint` — `zlintpre` then `zlint -c ../styleguide -S --deny-warnings` (config:
+  `../styleguide/zlint.json`; warnings are errors) over the same sources minus `LINT_EXCLUDE` (`src/c_api.zig`)
 - `make validate` — the pre-commit gate: clean, format, lint, build, test
+- `format`, `lint`, and `validate` come from `../styleguide/Makefile.in`; the `Makefile` sets `ZIG_DIRS` and
+  `LINT_EXCLUDE` right after the include
 - `make docs`, `make dist`, `make linux`, `make windows`, `make clean`
 
 `zlintpre` and `zlint` are external binaries under `/usr/local/inferise/`. If they are missing, run
 `make format test` instead of `make validate` and say that lint was skipped.
 
 Both linters default to walking the whole working directory and have no exclude option, so `make lint` feeds
-them an explicit file list (`LINT_FILES`) — otherwise they lint the vendored deps under `zig-pkg/`. Add new
-source roots there, in the `Makefile`, not to a config file. `LINT_EXCLUDE` drops `src/c_api.zig` from both
+them an explicit file list built from `ZIG_DIRS` — otherwise they lint the vendored deps under `zig-pkg/`. Add new
+source roots to `ZIG_DIRS` in the `Makefile`, not to a config file. `LINT_EXCLUDE` drops `src/c_api.zig` from both
 linters; see the C ABI note below.
 
 `zlintpre` forbids a trailing comma in a fn parameter list, and in Zig a trailing comma is what pins a list to
 one-param-per-line. Dropping it is always safe: `zig fmt` joins short lists onto one line and leaves longer ones
 wrapped, and either result is stable under repeated formatting. **Never re-add a trailing comma to a fn parameter
 list** — `zig fmt` will keep it and `zlintpre` will fail. Run `make format` before `make lint`, as `make validate`
-does. Signatures may exceed 100 columns; nothing checks width (`line-length` is `off` in `styleguide/zlint.json`).
+does. Signatures may exceed 100 columns; nothing checks width (`line-length` is `off` in `../styleguide/zlint.json`).
 
-CI is the source of truth for formatting and runs `zig fmt --check .`; the Makefile's `format` target uses
-`zig fmt **/*.zig`, which only recurses under zsh/globstar-bash. When in doubt, verify with `zig fmt --check .`.
+CI is the source of truth for formatting and runs `zig fmt --check .`; the Makefile's `format` target covers
+only `build.zig`, `ZIG_DIRS`, and `build.zig.zon`. When in doubt, verify with `zig fmt --check .`.
 
 Run the demo gallery: `make cli` (letters a-m pick a demo, esc returns to the menu, q quits). Run a single example: `make example EXAMPLE=<name>` (default
 `text_input`), and `make examples` to list the valid
 names. They are interactive TUIs, so they need a real tty — without one they fail at `/dev/tty` with
 `error: NoDevice`, which is expected, not a regression.
 
-`styleguide/` is a git submodule. After a fresh clone, `git submodule update --init` — without it `make lint`
-loses its config and the `@` imports below resolve to nothing.
+`make lint` and the `@` imports below need the shared sibling checkout at `../styleguide` — without it `make lint`
+loses its config and the `@` imports resolve to nothing.
 
 ## Module layout
 
@@ -60,11 +63,12 @@ loses its config and the `@` imports below resolve to nothing.
   point, `demo_app.zig` is the root widget and menu, `gallery.zig` owns the stateful demo widgets.
 - `examples/`, `bench/` — not published in the package (`.paths` in `build.zig.zon` ships only `LICENSE`,
   `build.zig`, `build.zig.zon`, `include`, `src`).
-- `styleguide/` — org-wide style submodule. Never hand-edit; changes there affect every Inferise project.
+- `../styleguide` — the org-wide style guide, a shared sibling checkout (its own repo). Never edit it from this
+  repo; changes there affect every Inferise project.
 
 ## Architecture conventions
 
-Org-wide Zig rules: @styleguide/ZIGSTYLE.md
+Org-wide Zig rules: @../styleguide/ZIGSTYLE.md
 
 This repo is a fork carrying upstream libvaxis conventions, so ZIGSTYLE applies to **genuinely new files only**.
 When editing an existing file, match that file's surrounding style rather than converting it:

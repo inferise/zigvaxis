@@ -6,6 +6,17 @@
 #
 ###############################################
 
+# Optional include to extend the makefile targets
+-include ../styleguide/Makefile.in
+
+# The Zig sources, examples/ and bench/ included.
+ZIG_DIRS := src cli examples bench
+
+# src/c_api.zig's exported fn names ARE the C ABI symbols (vaxis_<name>), so
+# they stay snake_case for C callers; the case-convention rule would reject
+# every one of them.
+LINT_EXCLUDE := src/c_api.zig
+
 .DEFAULT_GOAL := all
 
 .PHONY: build dist run cli example examples
@@ -24,10 +35,6 @@ VERSION := $(shell sed -n -E 's/^[[:space:]]*\.version[[:space:]]*=[[:space:]]*"
 # Build, format, and test.
 all: build format test
 	@echo "done"
-
-# Full pre-commit gate: clean, format, lint, build, then test.
-validate: clean format lint build test
-	@echo "validate done"
 
 # ---------------------------------------------
 # Build
@@ -97,29 +104,6 @@ targets:
 # Run the unit test suite.
 test:
 	zig build test --summary all
-
-# ---------------------------------------------
-# Format & lint
-# ---------------------------------------------
-
-# Format the Zig sources.
-format:
-	zig fmt **/*.zig
-
-# The Zig sources we lint. Both linters default to walking the whole cwd and
-# have no exclude option, so pass an explicit list -- otherwise they lint the
-# vendored dependencies under zig-pkg/.
-#
-# src/c_api.zig is excluded outright. Its exported fn names ARE the C ABI
-# symbols (vaxis_<name>), so they stay snake_case for C callers; the Zig
-# case-convention rule would reject every one of them.
-LINT_EXCLUDE := src/c_api.zig
-LINT_FILES := $(filter-out $(LINT_EXCLUDE),build.zig $(shell find src cli examples bench -name '*.zig'))
-
-# Lint the Zig sources. Warnings are errors.
-lint:
-	zlintpre $(LINT_FILES)
-	@printf '%s\n' $(LINT_FILES) | zlint -c styleguide -S
 
 # ---------------------------------------------
 # Documentation
