@@ -1,4 +1,3 @@
-
 /// Control bytes. See man 7 ascii
 pub const C0 = enum(u8) {
     NUL = 0x00,

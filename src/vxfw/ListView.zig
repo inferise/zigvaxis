@@ -248,13 +248,7 @@ pub fn scrollToBottom(self: *ListView) void {
 }
 
 /// Inserts children until add_height is < 0
-fn insertChildren(
-    self: *ListView,
-    ctx: vxfw.DrawContext,
-    builder: Builder,
-    child_list: *std.ArrayList(vxfw.SubSurface),
-    add_height: i17
-) Allocator.Error!void {
+fn insertChildren(self: *ListView, ctx: vxfw.DrawContext, builder: Builder, child_list: *std.ArrayList(vxfw.SubSurface), add_height: i17) Allocator.Error!void {
     assert(self.scroll.top > 0);
     self.scroll.top -= 1;
     var upheight = add_height;

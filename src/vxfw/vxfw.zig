@@ -165,11 +165,7 @@ pub const EventContext = struct {
 
     /// Send a system notification. This function dupes title and body using it's own allocator.
     /// They will be freed once the notification has been sent
-    pub fn sendNotification(
-        self: *EventContext,
-        maybe_title: ?[]const u8,
-        body: []const u8
-    ) Allocator.Error!void {
+    pub fn sendNotification(self: *EventContext, maybe_title: ?[]const u8, body: []const u8) Allocator.Error!void {
         const alloc = self.alloc;
         if (maybe_title) |title| {
             return self.addCmd(.{ .notify = .{
@@ -373,12 +369,7 @@ pub const Surface = struct {
         };
     }
 
-    pub fn initWithChildren(
-        allocator: Allocator,
-        widget: Widget,
-        size: Size,
-        children: []SubSurface
-    ) Allocator.Error!Surface {
+    pub fn initWithChildren(allocator: Allocator, widget: Widget, size: Size, children: []SubSurface) Allocator.Error!Surface {
         return .{
             .size = size,
             .widget = widget,

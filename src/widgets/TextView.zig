@@ -158,10 +158,7 @@ pub const Buffer = struct {
         }
     }
 
-    pub fn writer(
-        self: *@This(),
-        allocator: std.mem.Allocator
-    ) BufferWriter.Writer {
+    pub fn writer(self: *@This(), allocator: std.mem.Allocator) BufferWriter.Writer {
         return .{
             .context = .{
                 .allocator = allocator,

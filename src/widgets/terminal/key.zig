@@ -1,12 +1,7 @@
 const std = @import("std");
 const vaxis = @import("../../main.zig");
 
-pub fn encode(
-    writer: *std.Io.Writer,
-    key: vaxis.Key,
-    press: bool,
-    kitty_flags: vaxis.Key.KittyFlags
-) !void {
+pub fn encode(writer: *std.Io.Writer, key: vaxis.Key, press: bool, kitty_flags: vaxis.Key.KittyFlags) !void {
     const flags: u5 = @bitCast(kitty_flags);
     switch (press) {
         true => {

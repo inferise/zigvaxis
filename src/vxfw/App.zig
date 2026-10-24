@@ -201,11 +201,7 @@ pub fn run(self: *App, widget: vxfw.Widget, opts: Options) anyerror!void {
     }
 }
 
-fn doLayout(
-    self: *App,
-    widget: vxfw.Widget,
-    arena: *std.heap.ArenaAllocator
-) !vxfw.Surface {
+fn doLayout(self: *App, widget: vxfw.Widget, arena: *std.heap.ArenaAllocator) !vxfw.Surface {
     const vx = &self.vx;
 
     const draw_context: vxfw.DrawContext = .{
@@ -225,11 +221,7 @@ fn doLayout(
     return widget.draw(draw_context);
 }
 
-fn render(
-    self: *App,
-    surface: vxfw.Surface,
-    focused_widget: vxfw.Widget
-) !void {
+fn render(self: *App, surface: vxfw.Surface, focused_widget: vxfw.Widget) !void {
     const vx = &self.vx;
     const tty = &self.tty;
 
@@ -340,12 +332,7 @@ const MouseHandler = struct {
         gpa.free(self.last_hit_list);
     }
 
-    fn updateMouse(
-        self: *MouseHandler,
-        app: *App,
-        surface: vxfw.Surface,
-        ctx: *vxfw.EventContext
-    ) anyerror!void {
+    fn updateMouse(self: *MouseHandler, app: *App, surface: vxfw.Surface, ctx: *vxfw.EventContext) anyerror!void {
         const mouse = self.mouse orelse return;
         // For mouse events we store the last frame and use that for hit testing
         const last_frame = surface;
@@ -556,11 +543,7 @@ const FocusHandler = struct {
     }
 
     /// Returns true if a child of surface is the focused widget
-    fn childHasFocus(
-        self: *FocusHandler,
-        allocator: Allocator,
-        surface: vxfw.Surface
-    ) Allocator.Error!bool {
+    fn childHasFocus(self: *FocusHandler, allocator: Allocator, surface: vxfw.Surface) Allocator.Error!bool {
         // Check if we are the focused widget
         if (self.focused_widget.eql(surface.widget)) {
             try self.path_to_focused.append(allocator, surface.widget);
