@@ -128,6 +128,8 @@ inline fn parseGround(input: []const u8) !Result {
         0x0B...0x0C,
         0x0E...0x1A,
         => .{ .codepoint = b + 0x60, .mods = .{ .ctrl = true } },
+        // Ctrl+\ ] ^ _ (0x1D is also what a legacy terminal sends for Ctrl+5).
+        0x1C...0x1F => .{ .codepoint = b + 0x40, .mods = .{ .ctrl = true } },
         0x1B => escape: {
             std.debug.assert(input.len == 1); // parseGround expects len == 1 with 0x1b
             break :escape .{
@@ -878,6 +880,17 @@ test "parse: xterm ctrl+a" {
 
     try testing.expectEqual(1, result.n);
     try testing.expectEqual(expected_event, result.event);
+}
+
+test "parse: xterm ctrl+] and the other controls past ctrl+z" {
+    const alloc = testing.allocator_instance.allocator();
+    var parser: Parser = .{};
+    for ("\x1c\x1d\x1e\x1f", "\\]^_") |byte, codepoint| {
+        const result = try parser.parse(&.{byte}, alloc);
+        const expected_event: Event = .{ .key_press = .{ .codepoint = codepoint, .mods = .{ .ctrl = true } } };
+        try testing.expectEqual(1, result.n);
+        try testing.expectEqual(expected_event, result.event);
+    }
 }
 
 test "parse: xterm alt+a" {
