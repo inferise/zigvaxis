@@ -27,7 +27,7 @@ Use the `Makefile`, not bare `zig build`:
   `LINT_EXCLUDE` right after the include
 - `make docs`, `make dist`, `make linux`, `make windows`, `make clean`
 
-`zlintpre` and `zlint` are external binaries under `/usr/local/inferise/`. If they are missing, run
+`zlintpre` and `zlint` are external binaries found on `PATH`. If they are missing, run
 `make format test` instead of `make validate` and say that lint was skipped.
 
 Both linters default to walking the whole working directory and have no exclude option, so `make lint` feeds
@@ -64,7 +64,7 @@ loses its config and the `@` imports resolve to nothing.
 - `examples/`, `bench/` — not published in the package (`.paths` in `build.zig.zon` ships only `LICENSE`,
   `build.zig`, `build.zig.zon`, `include`, `src`).
 - `../styleguide` — the org-wide style guide, a shared sibling checkout (its own repo). Never edit it from this
-  repo; changes there affect every Inferise project.
+  repo; changes there affect every project that shares it.
 
 ## Architecture conventions
 
@@ -97,7 +97,7 @@ When editing an existing file, match that file's surrounding style rather than c
 
 - **`make run` and `make demo` are broken.** They invoke `zig build run` / `zig build serve`, steps that do not
   exist in `build.zig`; `make demo`'s web console does not exist in this repo at all. Use `make example`
-  instead. (`make github` / `make clone` also still point at `inferise/zigbase`.)
+  instead. (`make github` / `make clone` also still point at `mlavergn/zigbase`.)
 - **Tests never touch a real terminal.** `src/tty.zig` swaps in a `TestTty` whenever `builtin.is_test`, and
   `getWinsize` returns a fixed 80x40. Do not write tests that assume real terminal dimensions or capabilities;
   tests that genuinely need one return `error.SkipZigTest` (several are Linux-only).

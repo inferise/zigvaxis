@@ -1,8 +1,8 @@
 .{
     .name = .zigvaxis,
-    .description = "Inferise Zig Vaxis TUI Module",
+    .description = "Zig Vaxis TUI Module",
     .fingerprint = 0x81b4286c3eb26da9,
-    .version = "2.0.6",
+    .version = "2.0.7",
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .zigimg = .{

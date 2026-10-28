@@ -140,11 +140,11 @@ open:
 
 # Open the repository on GitHub.
 github:
-	open "https://github.com/inferise/zigbase"
+	open "https://github.com/mlavergn/zigbase"
 
 # Clone a fresh working copy.
 clone:
-	git clone git@github.com:inferise/zigbase.git
+	git clone git@github.com:mlavergn/zigbase.git
 
 # Start Claude Code here.
 claude:
